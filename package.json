@@ -8,7 +8,6 @@
     "dev": "vite",
     "build": "vite build",
     "test": "vitest run",
-    "test": "vitest run",
     "preview": "vite preview",
     "cap:copy": "npx cap copy",
     "cap:sync": "npx cap sync android",
