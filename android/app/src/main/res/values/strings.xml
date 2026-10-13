@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Beton fuvar</string>
+    <string name="title_activity_main">Beton fuvar</string>
+    <string name="package_name">hu.szaboattila.kdt307</string>
+    <string name="custom_url_scheme">hu.szaboattila.kdt307</string>
+</resources>

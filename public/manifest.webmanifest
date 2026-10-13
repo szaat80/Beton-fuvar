@@ -1,0 +1,19 @@
+{
+  "name": "Beton fuvar | KDT-307",
+  "short_name": "Beton fuvar",
+  "description": "Offline betonfuvar-nyilvántartó és díjszámító alkalmazás.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#111111",
+  "lang": "hu",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
