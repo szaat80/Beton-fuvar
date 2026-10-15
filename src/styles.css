@@ -128,6 +128,30 @@ button {
   gap: 0.5rem;
 }
 
+.app-header-brand,
+.label-with-icon,
+.field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.app-brand-icon {
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.field-label img,
+.label-with-icon img,
+.optional-feature > summary img {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
 .app-header-title-row {
   justify-content: space-between;
 }
@@ -291,6 +315,38 @@ button {
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 1rem;
+}
+
+.cloud-sync {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 1rem;
+}
+
+.cloud-sync > summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.cloud-form {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.cloud-account,
+.cloud-choice {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+}
+
+.cloud-choice {
+  border-color: #f59e0b;
+  background: #fffbeb;
 }
 
 .office-export {
@@ -556,6 +612,9 @@ button {
 }
 
 .optional-feature > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 0.75rem 0.9rem;
   color: #374151;
   background: #fff;

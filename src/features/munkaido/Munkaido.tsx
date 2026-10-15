@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import type { MunkaidoTetel, MunkaidoTetelDraft, MunkaTipus } from '../../core/data/storage'
 import { Ablak } from '../../ui/components/Ablak'
+import { ikonok } from '../../ui/theme/ikon'
 
 interface MunkaidoProps {
   bejegyzesek: MunkaidoTetel[]
@@ -70,7 +71,7 @@ export function MunkaidoAblak({ bejegyzesek, onSaveWork }: MunkaidoProps) {
   }
 
   return (
-    <Ablak title="Munkaidő-számoló">
+    <Ablak title={<span className="label-with-icon"><img src={ikonok.munkaido} alt="" />Munkaidő-számoló</span>}>
       <div className="space-y-3">
         <label className="field">
           <span>Munka típusa</span>

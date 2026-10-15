@@ -11,6 +11,7 @@ import { IrodaiOsszesito } from '../features/fuvar/IrodaiOsszesito'
 import { Gyarkezelo } from '../features/gyar/Gyarkezelo'
 import { MunkaidoAblak } from '../features/munkaido/Munkaido'
 import { JelenletiIv } from '../features/munkaido/JelenletiIv'
+import { CloudSync } from '../features/cloud/CloudSync'
 import { Ablak } from '../ui/components/Ablak'
 import { ikonok } from '../ui/theme/ikon'
 import { betu } from '../ui/theme/betu'
@@ -146,7 +147,15 @@ export default function App() {
   async function adatmentesMegosztasa() {
     try {
       const mentesAdat = adatmentesExportalasa(config.gyarak, config.projektek, config.minM3, config.allasDij, config.appName)
-      const fajlNev = `beton-fuvar-mentes-${new Date().toISOString().slice(0, 10)}.json`
+      const azonosito = [mentesAdat.driverName, mentesAdat.plateNumber]
+        .filter(Boolean)
+        .join('-')
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+      const idobelyeg = mentesAdat.letrehozva.replace('T', '-').replace(/[:.]/g, '-')
+      const fajlNev = `beton-fuvar-mentes-${azonosito || 'felhasznalo'}-${idobelyeg}.json`
       const tartalom = JSON.stringify(mentesAdat, null, 2)
       if (Capacitor.isNativePlatform()) {
         const { uri } = await Filesystem.writeFile({
@@ -179,6 +188,24 @@ export default function App() {
     }
   }
 
+  function cloudAdatokFrissitese() {
+    try {
+      setFuvarok(betoltes())
+      setGyarak(gyarakBetoltese(config.gyarak, config.minM3, config.allasDij))
+      setProjektek(projektekBetoltese(config.projektek))
+      setMunkaidoTetelek(muhelyTetelekBetoltese())
+      setJelenletiFejlec(jelenletiFejlecBetoltese())
+      const fejlec = appFejlecBetoltese(config.appName)
+      setAppFejlec(fejlec)
+      setAppFejlecPiszkozat(fejlec)
+      setSzerkesztettId(null)
+      setUrlap(uresFuvar())
+      setHiba('')
+    } catch (error) {
+      setHiba(`A felhőadatok frissültek, de a képernyő újratöltése nem sikerült. ${hibaSzoveg(error)}`)
+    }
+  }
+
   async function adatmentesBetoltese(event: React.ChangeEvent<HTMLInputElement>) {
     const fajl = event.target.files?.[0]
     if (!fajl) return
@@ -205,6 +232,7 @@ export default function App() {
     } finally {
       event.target.value = ''
     }
+
   }
 
   function munkaidoTorlesKezelese(tetel: MunkaidoTetel) {
@@ -296,7 +324,10 @@ export default function App() {
             </form>
           ) : (
             <div className="app-header-title-row">
-              <div className="font-bold text-sm app-header-title">{appFejlec}</div>
+              <div className="app-header-brand">
+                <img src={ikonok.fuvar} alt="" className="app-brand-icon" />
+                <div className="font-bold text-sm app-header-title">{appFejlec}</div>
+              </div>
               <button
                 type="button"
                 className="app-header-action"
@@ -339,7 +370,7 @@ export default function App() {
         />
 
         <details className="optional-feature">
-          <summary>{ikonok.allas} Munkaidő-számoló (opcionális)</summary>
+          <summary><img src={ikonok.munkaido} alt="" />Munkaidő-számoló (opcionális)</summary>
           <MunkaidoAblak bejegyzesek={munkaidoTetelek} onSaveWork={munkaidoMentesKezelese} />
         </details>
 
@@ -407,6 +438,8 @@ export default function App() {
 
         <IrodaiOsszesito fuvarok={fuvarok} />
 
+        <CloudSync onRemoteRestore={cloudAdatokFrissitese} />
+
         <section className="backup-tools" aria-labelledby="backup-heading">
           <div className="section-heading">
             <h1 id="backup-heading">Biztonsági mentés</h1>
@@ -428,7 +461,7 @@ export default function App() {
         </section>
 
         <footer className="app-footer">
-          A fuvarok ezen az eszközön maradnak meg. Másik eszközre nem szinkronizálódnak.
+          A fuvarok helyben is mentődnek. Felhőszinkron csak a saját Supabase-projekt beállítása és a bejelentkezés után működik.
         </footer>
       </main>
     </div>

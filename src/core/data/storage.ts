@@ -55,6 +55,8 @@ export interface Adatmentes {
   formatum: 'beton-fuvar-mentes'
   verzio: 1
   letrehozva: string
+  driverName?: string
+  plateNumber?: string
   adatok: {
     fuvarok: FuvarRecord[]
     gyarak: Gyar[]
@@ -91,17 +93,23 @@ export function appFejlecMentese(fejlec: string): string {
 }
 
 export function adatmentesExportalasa(alapGyarak: Gyar[], alapProjektek: string[], alapMinM3: number, alapAllasDij: number, alapAppFejlec: string): Adatmentes {
+  const appFejlec = appFejlecBetoltese(alapAppFejlec)
+  const [fejlecNev, ...rendszamReszek] = appFejlec.split('|')
+  const driverName = fejlecNev.trim() || appFejlec
+  const plateNumber = rendszamReszek.join('|').trim()
   return {
     formatum: 'beton-fuvar-mentes',
     verzio: 1,
     letrehozva: new Date().toISOString(),
+    driverName,
+    ...(plateNumber ? { plateNumber } : {}),
     adatok: {
       fuvarok: betoltes(),
       gyarak: gyarakBetoltese(alapGyarak, alapMinM3, alapAllasDij),
       munkaidoTetelek: muhelyTetelekBetoltese(),
       projektek: projektekBetoltese(alapProjektek),
       jelenletiFejlec: jelenletiFejlecBetoltese(),
-      appFejlec: appFejlecBetoltese(alapAppFejlec)
+      appFejlec
     }
   }
 }
@@ -120,6 +128,8 @@ export function adatmentesEllenorzese(adat: unknown, alapMinM3: number, alapAlla
   const mentes = adat as Partial<Adatmentes>
   if (mentes.formatum !== 'beton-fuvar-mentes' || mentes.verzio !== 1
     || typeof mentes.letrehozva !== 'string'
+    || (mentes.driverName !== undefined && typeof mentes.driverName !== 'string')
+    || (mentes.plateNumber !== undefined && typeof mentes.plateNumber !== 'string')
     || typeof mentes.adatok !== 'object' || mentes.adatok === null) {
     throw new Error('A fájl nem támogatott Beton fuvar mentésformátum.')
   }
@@ -158,6 +168,8 @@ export function adatmentesEllenorzese(adat: unknown, alapMinM3: number, alapAlla
     formatum: 'beton-fuvar-mentes',
     verzio: 1,
     letrehozva: mentes.letrehozva,
+    ...(mentes.driverName !== undefined ? { driverName: mentes.driverName } : {}),
+    ...(mentes.plateNumber !== undefined ? { plateNumber: mentes.plateNumber } : {}),
     adatok: {
       fuvarok: fuvarok.map((fuvar) => ({
         ...fuvar,

@@ -89,18 +89,20 @@ describe('biztonsági mentés', () => {
     localStorage.setItem(MUHELY_STORAGE_KEY, JSON.stringify([munkaido]))
     localStorage.setItem(PROJEKT_STORAGE_KEY, JSON.stringify([alapProjekt]))
     localStorage.setItem(JELENLETI_FEJLEC_KEY, JSON.stringify({ munkaltato: 'Teszt Kft.', dolgozo: 'Kolléga' }))
-    localStorage.setItem(APP_FEJLEC_STORAGE_KEY, 'Teszt alkalmazás')
+    localStorage.setItem(APP_FEJLEC_STORAGE_KEY, 'Szabó Attila | KDT-307')
 
     const exportAdat = adatmentesExportalasa([alapGyar], ['Alap projekt'], 4, 2000, 'Alap fejléc')
 
     expect(exportAdat.formatum).toBe('beton-fuvar-mentes')
     expect(exportAdat.verzio).toBe(1)
+    expect(exportAdat.driverName).toBe('Szabó Attila')
+    expect(exportAdat.plateNumber).toBe('KDT-307')
     expect(exportAdat.adatok.fuvarok).toEqual([tesztFuvar])
     expect(exportAdat.adatok.gyarak).toEqual([alapGyar])
     expect(exportAdat.adatok.munkaidoTetelek).toEqual([munkaido])
     expect(exportAdat.adatok.projektek).toEqual([alapProjekt])
     expect(exportAdat.adatok.jelenletiFejlec.dolgozo).toBe('Kolléga')
-    expect(exportAdat.adatok.appFejlec).toBe('Teszt alkalmazás')
+    expect(exportAdat.adatok.appFejlec).toBe('Szabó Attila | KDT-307')
   })
 
   it('elutasítja az érvénytelen mentést anélkül, hogy módosítaná a meglévő adatokat', () => {

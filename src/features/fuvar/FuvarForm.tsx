@@ -2,6 +2,7 @@ import React from 'react'
 import type { FuvarDraft, Projekt } from '../../core/data/storage'
 import { szamitas, zonaLepesekSzama, zonaNovegmenyOsszesen, zonaSavNeve } from '../../core/domain/szamitas'
 import { Ablak } from '../../ui/components/Ablak'
+import { ikonok } from '../../ui/theme/ikon'
 
 export interface FuvarFormState {
   fuvarszam: string
@@ -83,32 +84,32 @@ export function FuvarForm({
           <input value={value.cim} onChange={(event) => onChange({ ...value, cim: event.target.value })} placeholder="Utca, házszám, település" autoComplete="street-address" />
         </label>
         <label className="field">
-          <span>Gyár</span>
+          <span className="field-label"><img src={ikonok.gyar} alt="" />Gyár</span>
           <select value={value.gyarId} onChange={(event) => onChange({ ...value, gyarId: event.target.value })}>
             {gyarak.map((item) => <option key={item.id} value={item.id}>{item.nev} — alap: {item.fuvarAlap.toLocaleString('hu-HU')} Ft/m³</option>)}
           </select>
         </label>
         <label className="field">
-          <span>Projekt</span>
+          <span className="field-label"><img src={ikonok.projekt} alt="" />Projekt</span>
           <select value={value.projekt} onChange={(event) => onChange({ ...value, projekt: event.target.value })}>
             <option value="">Nincs kiválasztva</option>
             {projektek.map((item) => <option key={item.nev} value={item.nev}>{item.nev}{item.arM3 === null ? '' : ` — ${item.arM3.toLocaleString('hu-HU')} Ft/m³ fix`}</option>)}
           </select>
         </label>
         <label className="field">
-          <span>Beton mennyiség (m³)</span>
+          <span className="field-label"><img src={ikonok.m3} alt="" />Beton mennyiség (m³)</span>
           <input type="number" min="0.1" step="0.5" inputMode="decimal" value={value.m3} onChange={(event) => onChange({ ...value, m3: event.target.value })} placeholder="Add meg a mennyiséget" />
         </label>
         <label className="field">
-          <span>Távolság (km)</span>
+          <span className="field-label"><img src={ikonok.km} alt="" />Távolság (km)</span>
           <input type="number" min="0" max="60" step="0.1" inputMode="decimal" value={value.km} onChange={(event) => onChange({ ...value, km: event.target.value })} placeholder="Add meg a távolságot" />
         </label>
       </div>
 
       <div className="form-subsection">
-        <div className="text-xs text-gray-500 mb-2">Állásidő (15 perc / egység)</div>
+        <div className="field-label text-xs text-gray-500 mb-2"><img src={ikonok.allas} alt="" />Állásidő (15 perc / egység)</div>
         <label className="field">
-          <span>Állásidő egységei (15 perc)</span>
+          <span className="field-label"><img src={ikonok.allas} alt="" />Állásidő egységei (15 perc)</span>
           <select value={value.allasDb} onChange={(event) => onChange({ ...value, allasDb: Number(event.target.value) })}>
             {Array.from({ length: 21 }, (_, number) => (
               <option key={number} value={number}>{number === 0 ? 'Nincs állásidő' : `${number} × 15 perc (${number / 4} óra)`}</option>

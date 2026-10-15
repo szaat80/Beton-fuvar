@@ -3,12 +3,11 @@ import { Capacitor } from '@capacitor/core'
 import { Directory, Filesystem } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
 import type { FuvarRecord } from '../../core/data/storage'
+import { irodaiMunkafuzetGeneralasa } from './irodaiExcel'
 
 interface IrodaiOsszesitoProps {
   fuvarok: FuvarRecord[]
 }
-
-const magyarPenz = '#,##0 "Ft"'
 
 function datumKulcs(iso: string): string {
   return iso.slice(0, 7)
@@ -45,10 +44,7 @@ function blobBase64(blob: Blob): Promise<string> {
 }
 
 export function IrodaiOsszesito({ fuvarok }: IrodaiOsszesitoProps) {
-  const [honap, setHonap] = useState(() => {
-    const most = new Date()
-    return `${most.getFullYear()}-${String(most.getMonth() + 1).padStart(2, '0')}`
-  })
+  const [honap, setHonap] = useState('osszes')
   const [hiba, setHiba] = useState('')
   const [uzenet, setUzenet] = useState('')
   const honapLista = useMemo(
@@ -69,62 +65,7 @@ export function IrodaiOsszesito({ fuvarok }: IrodaiOsszesitoProps) {
   async function xlsxExportalasa() {
     try {
       const { default: ExcelJS } = await import('exceljs')
-      const munkafuzet = new ExcelJS.Workbook()
-      munkafuzet.creator = 'Beton fuvar'
-      munkafuzet.created = new Date()
-      const fuvarLap = munkafuzet.addWorksheet('Fuvarok', { views: [{ state: 'frozen', ySplit: 1 }] })
-      fuvarLap.columns = [
-        { header: 'Dátum', key: 'datum', width: 14 },
-        { header: 'Fuvarlevél száma', key: 'fuvarszam', width: 20 },
-        { header: 'Szállítólevél száma', key: 'szallitolevel', width: 23 },
-        { header: 'Gyár', key: 'gyar', width: 30 },
-        { header: 'Projekt', key: 'projekt', width: 24 },
-        { header: 'Kiszállítás címe', key: 'cim', width: 38 },
-        { header: 'Mennyiség (m³)', key: 'm3', width: 16 },
-        { header: 'Távolság (km)', key: 'km', width: 16 },
-        { header: 'Állásidő (15 perc)', key: 'allasDb', width: 19 },
-        { header: 'Fuvar alapdíj', key: 'fuvarAlap', width: 17, style: { numFmt: magyarPenz } },
-        { header: 'Betondíj', key: 'betonDij', width: 17, style: { numFmt: magyarPenz } },
-        { header: 'Övezeti díj', key: 'kmExtra', width: 17, style: { numFmt: magyarPenz } },
-        { header: 'Állásdíj', key: 'allasDij', width: 17, style: { numFmt: magyarPenz } },
-        { header: 'Összesen', key: 'total', width: 18, style: { numFmt: magyarPenz } }
-      ]
-      for (const fuvar of szurtFuvarok) {
-        fuvarLap.addRow({
-          datum: datumSzoveg(fuvar.createdAt),
-          fuvarszam: fuvar.fuvarszam,
-          szallitolevel: fuvar.szallitolevel,
-          gyar: fuvar.gyarNev,
-          projekt: fuvar.projekt,
-          cim: fuvar.cim,
-          m3: fuvar.m3,
-          km: fuvar.km,
-          allasDb: fuvar.allasDb,
-          fuvarAlap: fuvar.fuvarAlap,
-          betonDij: fuvar.betonDij,
-          kmExtra: fuvar.kmExtra,
-          allasDij: fuvar.allasDij,
-          total: fuvar.total
-        })
-      }
-      fuvarLap.autoFilter = { from: 'A1', to: `N${Math.max(1, szurtFuvarok.length + 1)}` }
-      fuvarLap.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
-      fuvarLap.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF111827' } }
-
-      const osszesitoLap = munkafuzet.addWorksheet('Összesítő')
-      osszesitoLap.addRows([
-        ['Fuvar elszámolás', cimke],
-        ['Fuvarok száma', szurtFuvarok.length],
-        ['Összes mennyiség (m³)', osszesM3],
-        ['Fuvarbevétel összesen', osszesBevetel],
-        [],
-        ['Megjegyzés', 'Ez az elszámolás nem számla; a számlát a számlázóprogramban kell kiállítani.']
-      ])
-      osszesitoLap.columns = [{ width: 34 }, { width: 82 }]
-      osszesitoLap.getRow(1).font = { bold: true, size: 14 }
-      osszesitoLap.getCell('B4').numFmt = magyarPenz
-      osszesitoLap.getColumn(1).font = { bold: true }
-
+      const munkafuzet = irodaiMunkafuzetGeneralasa(ExcelJS, szurtFuvarok, cimke)
       const tartalom = await munkafuzet.xlsx.writeBuffer()
       const fajl = new Blob([tartalom], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
       const fajlNev = `beton-fuvar-elszamolas-${fajlDatum(honap)}.xlsx`
@@ -187,7 +128,7 @@ export function IrodaiOsszesito({ fuvarok }: IrodaiOsszesitoProps) {
       <div className="section-heading">
         <h1 id="office-export-heading">Irodai elszámolás</h1>
       </div>
-      <p className="hint">Válassz időszakot, majd készíts Excel-táblázatot vagy nyomtatható PDF-et az irodának.</p>
+      <p className="hint">Alapból az összes fuvar kerül az Excelbe. Ha csak egy hónap adataira van szükség, válassz időszakot; a dátumok és összegek Excelben rendezhető, számolható értékek.</p>
       <label className="field office-month-field">
         Időszak
         <select value={honap} onChange={(event) => { setHonap(event.target.value); setHiba(''); setUzenet('') }}>
