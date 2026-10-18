@@ -1,0 +1,16 @@
+{
+    // IntelliSense használata a lehetséges attribútumok listázásához
+    // Húzza fölé az egeret a létező attribútumok leírásának megtekintéséhez!
+    // További információért látogassa meg a következőt: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "chrome",
+            "request": "launch",
+            "name": "Beton fuvar – fejlesztői indítás",
+            "url": "http://localhost:5173",
+            "webRoot": "${workspaceFolder}/v70-profi/src",
+            "preLaunchTask": "Beton fuvar: Vite fejlesztői szerver"
+        }
+    ]
+}

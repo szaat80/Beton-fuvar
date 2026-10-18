@@ -1,0 +1,39 @@
+{
+  "appName": "Szab\u00f3 Attila | KDT-307",
+  "version": "70 PROFI",
+  "gyarak": [
+    {
+      "id": "duna",
+      "nev": "Budapest - Duna Beton",
+      "fuvarAlap": 18500,
+      "zonaLepes": 700,
+      "minM3": 4,
+      "allasDij": 2000
+    },
+    {
+      "id": "csepeli",
+      "nev": "Csepeli Beton",
+      "fuvarAlap": 18200,
+      "zonaLepes": 700,
+      "minM3": 4,
+      "allasDij": 2000
+    },
+    {
+      "id": "elem",
+      "nev": "Elem Beton",
+      "fuvarAlap": 19000,
+      "zonaLepes": 700,
+      "minM3": 4,
+      "allasDij": 2000
+    }
+  ],
+  "projektek": [
+    "H\u00edd\u00e9p\u00edt\u00e9s",
+    "Ipari csarnok",
+    "T\u00e1rsash\u00e1z",
+    "Csal\u00e1di h\u00e1z"
+  ],
+  "minM3": 4,
+  "allasDij": 2000,
+  "fuvarFixDij": 45000
+}
