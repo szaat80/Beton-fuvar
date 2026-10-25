@@ -8,6 +8,10 @@ import {
   appFejlecMentese,
   soforNevRogzitese,
   zarolSoforNev,
+  kiallasMentes,
+  kiallasokBetoltese,
+  projektekBetoltese,
+  projektekMentese,
   type Adatmentes,
   type FuvarRecord,
   type Gyar,
@@ -87,6 +91,21 @@ describe('biztonsági mentés', () => {
     localStorage.clear()
   })
 
+  describe('kiállás rögzítése', () => {
+    beforeEach(() => {
+      localStorage.clear()
+    })
+
+    it('külön azonosítja a rögzített eseményt és a díjszabás útvonalát', () => {
+      const route = { id: 'route-1', honnan: 'Duna Beton', hova: 'Csepeli Beton', dij: 5000 }
+      const [saved] = kiallasMentes(route, 'Teszt Elek', 'ABC-123')
+
+      expect(saved.id).not.toBe(route.id)
+      expect(saved.routeId).toBe(route.id)
+      expect(kiallasokBetoltese()).toEqual([saved])
+    })
+  })
+
   it('exportálja a fuvarokat, gyárakat, projekteket, munkaidőt és fejléceket', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify([tesztFuvar]))
     localStorage.setItem(GYAR_STORAGE_KEY, JSON.stringify([alapGyar]))
@@ -135,6 +154,25 @@ describe('biztonsági mentés', () => {
     expect(JSON.parse(localStorage.getItem(PROJEKT_STORAGE_KEY) ?? '[]')).toEqual([alapProjekt])
     expect(JSON.parse(localStorage.getItem(JELENLETI_FEJLEC_KEY) ?? '{}')).toEqual({ munkaltato: 'Teszt Kft.', dolgozo: 'Kolléga' })
     expect(localStorage.getItem(APP_FEJLEC_STORAGE_KEY)).toBe('Teszt alkalmazás')
+  })
+
+  it('azonos nevű projekteket külön gyárakhoz rendelhet, de gyáranként nem enged ismétlést', () => {
+    const masikGyar = { ...alapGyar, id: 'gyar-2', nev: 'Másik Beton' }
+    const projektek = [
+      { nev: 'Lakópark', arM3: 1200, gyarId: alapGyar.id },
+      { nev: 'Lakópark', arM3: 1400, gyarId: masikGyar.id }
+    ]
+
+    expect(projektekMentese(projektek)).toEqual(projektek)
+    expect(projektekBetoltese([])).toEqual(projektek)
+    expect(() => projektekMentese([...projektek, { ...projektek[0], arM3: 1600 }]))
+      .toThrow('ugyanazon gyárhoz ismétlődő nevet')
+  })
+
+  it('a régi, még gyárhoz nem rendelt projekteket megőrzi a biztonsági mentésben', () => {
+    const backup = adatmentesEllenorzese(tesztMentes(), 4, 2000)
+
+    expect(backup.adatok.projektek).toEqual([alapProjekt])
   })
 
   it('visszagörgeti a már elmentett kulcsokat, ha az import írás közben meghiúsul', () => {

@@ -13,7 +13,7 @@ export interface FuvarFormState {
   m3: string
   km: string
   allasDb: number
-  ido: string
+  ejszakai: boolean
   datum: string
 }
 
@@ -21,7 +21,6 @@ interface FuvarFormProps {
   value: FuvarFormState
   gyarak: Gyar[]
   projektek: Projekt[]
-  arszabaly: { fuvarFixDij: number; allasDij: number }
   onChange: (value: FuvarFormState) => void
   onSave: (draft: FuvarDraft) => void
   onCancelEdit: () => void
@@ -29,13 +28,21 @@ interface FuvarFormProps {
 }
 
 export function FuvarForm({
-  value, gyarak, projektek, arszabaly, onChange, onSave, onCancelEdit, editing
+  value, gyarak, projektek, onChange, onSave, onCancelEdit, editing
 }: FuvarFormProps) {
   const gyar = gyarak.find((item) => item.id === value.gyarId) ?? gyarak[0]
-  const projekt = projektek.find((item) => item.nev === value.projekt)
+  const gyarProjektek = projektek.filter((item) => item.gyarId === gyar?.id)
+  const regiProjekt = editing
+    ? projektek.find((item) => !item.gyarId && item.nev === value.projekt)
+    : undefined
+  const projekt = gyarProjektek.find((item) => item.nev === value.projekt) ?? regiProjekt
   const projektDij = projekt?.arM3 ?? null
-  const fuvarAlap = projektDij ?? gyar?.fuvarAlap ?? 0
-  const zonaLepes = projektDij === null ? gyar?.zonaLepes ?? 0 : 0
+  const hasNightRate = projektDij === null && gyar?.ejszakaiTarifa !== undefined
+  const useNightRate = hasNightRate && value.ejszakai
+  const fuvarAlap = projektDij ?? (useNightRate ? gyar?.ejszakaiTarifa?.fuvarAlap : gyar?.fuvarAlap) ?? 0
+  const zonaLepes = projektDij === null
+    ? (useNightRate ? gyar?.ejszakaiTarifa?.zonaLepes : gyar?.zonaLepes) ?? 0
+    : 0
   const m3 = value.m3 === '' ? NaN : Number(value.m3)
   const km = value.km === '' ? NaN : Number(value.km)
   const ervenyes = gyar !== undefined
@@ -43,6 +50,7 @@ export function FuvarForm({
     && Number.isFinite(m3) && m3 > 0
     && Number.isFinite(km) && km >= 0 && km <= 60
     && Number.isInteger(value.allasDb) && value.allasDb >= 0 && value.allasDb <= 20
+    && (!value.ejszakai || hasNightRate)
   const elozetes = ervenyes && gyar
     ? szamitas({
       fuvarAlap,
@@ -51,23 +59,22 @@ export function FuvarForm({
       m3,
       km,
       allasDb: value.allasDb,
-      allasDij: gyar.allasDij,
-      dijszabaly: gyar.dijszabaly,
-      ido: value.ido
-    }, arszabaly)
+      allasDij: gyar.allasDij
+    })
     : undefined
 
   function mentesFuvar() {
     if (!ervenyes || !gyar || !elozetes) return
 
     const { datum, ...urlapAdat } = value
-    const letrehozva = new Date(`${datum}T${value.ido || '00:00'}:00`)
+    const letrehozva = new Date(`${datum}T12:00:00`)
     onSave({
       ...urlapAdat,
       ...(Number.isNaN(letrehozva.getTime()) ? {} : { createdAt: letrehozva.toISOString() }),
       gyarNev: gyar.nev,
       fuvarAlap,
       zonaLepes,
+      ejszakai: useNightRate,
       projektDij,
       minM3: gyar.minM3,
       m3,
@@ -93,16 +100,25 @@ export function FuvarForm({
         </label>
         <label className="field">
           <span className="field-label"><img src={ikonok.gyar} alt="" />Gyár</span>
-          <select value={value.gyarId} onChange={(event) => onChange({ ...value, gyarId: event.target.value })}>
+          <select value={gyar?.id ?? ''} onChange={(event) => onChange({ ...value, gyarId: event.target.value, projekt: '', ejszakai: false })}>
             {gyarak.map((item) => <option key={item.id} value={item.id}>{item.nev} — alap: {item.fuvarAlap.toLocaleString('hu-HU')} Ft/m³</option>)}
           </select>
         </label>
         <label className="field">
           <span className="field-label"><img src={ikonok.projekt} alt="" />Projekt</span>
-          <select value={value.projekt} onChange={(event) => onChange({ ...value, projekt: event.target.value })}>
+          <select value={value.projekt} onChange={(event) => {
+            const selectedProject = gyarProjektek.find((item) => item.nev === event.target.value)
+            onChange({
+              ...value,
+              projekt: event.target.value,
+              ...(selectedProject && selectedProject.arM3 !== null ? { ejszakai: false } : {})
+            })
+          }}>
             <option value="">Nincs kiválasztva</option>
-            {projektek.map((item) => <option key={item.nev} value={item.nev}>{item.nev}{item.arM3 === null ? '' : ` — ${item.arM3.toLocaleString('hu-HU')} Ft/m³ fix`}</option>)}
+            {regiProjekt && <option value={regiProjekt.nev}>{regiProjekt.nev} — régi, még nincs gyárhoz rendelve</option>}
+            {gyarProjektek.map((item) => <option key={item.nev} value={item.nev}>{item.nev}{item.arM3 === null ? '' : ` — ${item.arM3.toLocaleString('hu-HU')} Ft/m³ fix`}</option>)}
           </select>
+          {gyarProjektek.length === 0 && !regiProjekt && <small className="hint">Ehhez a gyárhoz még nincs projekt rendelve.</small>}
         </label>
         <label className="field">
           <span className="field-label"><img src={ikonok.m3} alt="" />Beton mennyiség (m³)</span>
@@ -112,10 +128,12 @@ export function FuvarForm({
           <span>Fuvar napja</span>
           <input type="date" value={value.datum} onChange={(event) => onChange({ ...value, datum: event.target.value })} required />
         </label>
-        <label className="field">
-          <span>Fuvar ideje</span>
-          <input type="time" value={value.ido} onChange={(event) => onChange({ ...value, ido: event.target.value })} />
+        {projektDij === null && (
+        <label className="field night-rate-toggle">
+          <span>Éjszakai díjszabás</span>
+          <span><input type="checkbox" checked={value.ejszakai} onChange={(event) => onChange({ ...value, ejszakai: event.target.checked })} /> Éjszakai övezeti árak használata</span>
         </label>
+        )}
         <label className="field">
           <span className="field-label"><img src={ikonok.km} alt="" />Távolság (km)</span>
           <input type="number" min="0" max="60" step="0.1" inputMode="decimal" value={value.km} onChange={(event) => onChange({ ...value, km: event.target.value })} placeholder="Add meg a távolságot" />
@@ -137,28 +155,29 @@ export function FuvarForm({
       {ervenyes && gyar && elozetes && (
         <div className="quote-summary" aria-live="polite">
           <span>Számított végösszeg</span>
+          {useNightRate && <small className="chip" style={{ fontWeight: 700 }}>🌙 ÉJSZAKAI ÖVEZETI DÍJSZABÁS</small>}
           {projektDij !== null
             ? <small>{projekt?.nev} projekt fix díja: {projektDij.toLocaleString('hu-HU')} Ft/m³ · övezeti díj nélkül</small>
             : <>
               <small>Távolság: {km.toLocaleString('hu-HU')} km · övezet: {zonaSavNeve(km)}</small>
-              <small>Fuvarár: {gyar.fuvarAlap.toLocaleString('hu-HU')} + {zonaLepesekSzama(km)} × {gyar.zonaLepes.toLocaleString('hu-HU')} = {(gyar.fuvarAlap + zonaNovegmenyOsszesen(km, gyar.zonaLepes)).toLocaleString('hu-HU')} Ft/m³</small>
+              <small>Fuvarár: {fuvarAlap.toLocaleString('hu-HU')} + {zonaLepesekSzama(km)} × {zonaLepes.toLocaleString('hu-HU')} = {(fuvarAlap + zonaNovegmenyOsszesen(km, zonaLepes)).toLocaleString('hu-HU')} Ft/m³</small>
             </>}
           <small>{Math.max(gyar.minM3, m3)} m³ számlázott mennyiség</small>
-          {value.allasDb > 0 && <small>Állásidő: {value.allasDb * 15} perc = {elozetes.allasDij.toLocaleString('hu-HU')} Ft{gyar.dijszabaly?.allasOra ? ' (megkezdett órák szerint)' : ''}</small>}
-          {elozetes.ejszakaPotlek > 0 && <small className="chip" style={{ fontWeight: 700 }}>🌙 ÉJSZAKAI DÍJSZABÁS · pótlék: {elozetes.ejszakaPotlek.toLocaleString('hu-HU')} Ft</small>}
-          {gyar.dijszabaly?.kiallas && <small>Kiállási díj: naponta egyszer, a nap fuvarszáma szerint ({gyar.dijszabaly.kiallas.kuszob} fuvartól {gyar.dijszabaly.kiallas.dijTobb.toLocaleString('hu-HU')} Ft, alatta {gyar.dijszabaly.kiallas.dijKevesebb.toLocaleString('hu-HU')} Ft)</small>}
+          {value.allasDb > 0 && <small>Állásidő: {value.allasDb * 15} perc = {elozetes.allasDij.toLocaleString('hu-HU')} Ft</small>}
           <strong>{elozetes.total.toLocaleString('hu-HU')} Ft</strong>
           {m3 < gyar.minM3 && <small>{gyar.nev} minimum számlázott mennyisége {gyar.minM3} m³.</small>}
         </div>
       )}
 
       <div className="form-actions">
-        {editing && <button type="button" className="button-secondary" onClick={onCancelEdit}>Mégse</button>}
+        <button type="button" className="button-secondary" onClick={onCancelEdit}>Mégse / vissza</button>
         <button type="button" className="button-primary" disabled={!ervenyes} onClick={mentesFuvar}>
           {editing ? 'Módosítások mentése' : 'Fuvar mentése'}
         </button>
       </div>
-      {!ervenyes && <p className="hint">A mentéshez adj meg pozitív betonmennyiséget és 0–60 km közötti távolságot.</p>}
+      {value.ejszakai && !hasNightRate
+        ? <p className="error-text" role="alert">Ehhez a gyárhoz még nincs éjszakai tarifa. Kérd az irodát, hogy küldje ki az éjszakai övezeti árakat.</p>
+        : !ervenyes && <p className="hint">A mentéshez adj meg pozitív betonmennyiséget és 0–60 km közötti távolságot.</p>}
     </Ablak>
   )
 }

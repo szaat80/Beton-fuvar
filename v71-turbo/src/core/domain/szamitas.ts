@@ -1,10 +1,8 @@
 // CORE - SOHA NE BÁNTSD, EZ A MOTOR
 // A gyár alapára és az elért övezetek növekménye m³-rel szorzódik.
-import { allasidoDij, ejszakaiPotlek, type Dijszabaly } from './dijszabaly'
+import { allasidoDij } from './dijszabaly'
 
 export interface FuvarInput {
-  dijszabaly?: Dijszabaly
-  ido?: string
   fuvarAlap: number
   zonaLepes: number
   minM3: number
@@ -12,14 +10,6 @@ export interface FuvarInput {
   km: number
   allasDb: number
   allasDij: number
-}
-
-export interface Arszabaly {
-  fuvarFixDij: number
-}
-
-const alapArszabaly: Arszabaly = {
-  fuvarFixDij: 45000
 }
 
 export const ZONA_SAVOK = Array.from({ length: 11 }, (_, index) => ({
@@ -43,21 +33,19 @@ export function zonaNovegmenyOsszesen(km: number, zonaLepes: number): number {
   return zonaLepesekSzama(km) * zonaLepes
 }
 
-export function szamitas(input: FuvarInput, arszabaly: Arszabaly = alapArszabaly) {
+export function szamitas(input: FuvarInput) {
   const szamlazottM3 = Math.max(input.minM3, input.m3)
   const betonDij = szamlazottM3 * input.fuvarAlap
   const zonaFtPerM3 = zonaNovegmenyOsszesen(input.km, input.zonaLepes)
   const kmExtra = szamlazottM3 * zonaFtPerM3
-  const allasDij = allasidoDij(input.allasDb, input.allasDij, input.dijszabaly)
-  const ejszakaPotlek = ejszakaiPotlek(input.ido, input.dijszabaly)
-  const total = betonDij + kmExtra + allasDij + ejszakaPotlek + arszabaly.fuvarFixDij
+  const allasDij = allasidoDij(input.allasDb, input.allasDij, undefined)
+  const total = betonDij + kmExtra + allasDij
   return {
     szamlazottM3,
     betonDij,
     zonaFtPerM3,
     kmExtra,
     allasDij,
-    ejszakaPotlek,
     total
   }
 }

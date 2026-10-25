@@ -36,12 +36,11 @@ describe('fuvarár-kalkuláció', () => {
       zonaFtPerM3: 0,
       kmExtra: 0,
       allasDij: 0,
-      ejszakaPotlek: 0,
-      total: 117000
+      total: 72000
     })
   })
 
-  it('a távolsági zónát, állásidőt és fix fuvardíjat összesíti', () => {
+  it('a távolsági zónát és állásidőt összesíti fix fuvardíj nélkül', () => {
     expect(szamitas({
       fuvarAlap: 18000,
       zonaLepes: 700,
@@ -50,14 +49,13 @@ describe('fuvarár-kalkuláció', () => {
       km: 10.1,
       allasDb: 2,
       allasDij: 2000
-    }, { fuvarFixDij: 45000 })).toEqual({
+    })).toEqual({
       szamlazottM3: 5,
       betonDij: 90000,
       zonaFtPerM3: 1400,
       kmExtra: 7000,
       allasDij: 4000,
-      ejszakaPotlek: 0,
-      total: 146000
+      total: 101000
     })
   })
 })

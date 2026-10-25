@@ -4,8 +4,8 @@ import { Capacitor } from '@capacitor/core'
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
 import config from '../config/app.config.json'
-import { adatmentesEllenorzese, adatmentesExportalasa, adatmentesVisszaallitasa, appFejlecBetoltese, appFejlecMentese, betoltes, gyarakBetoltese, gyarakMentese, jelenletiFejlecBetoltese, jelenletiFejlecMentese, mentes, muhelyTetelMentese, muhelyTetelTorlese, muhelyTetelekBetoltese, projektekBetoltese, projektekMentese, soforNevRogzitese, torles, zarolSoforNev } from '../core/data/storage'
-import type { FuvarDraft, FuvarRecord, Gyar, MunkaidoTetel, MunkaidoTetelDraft, Projekt } from '../core/data/storage'
+import { adatmentesEllenorzese, adatmentesExportalasa, adatmentesVisszaallitasa, appFejlecBetoltese, appFejlecMentese, betoltes, gyarakBetoltese, gyarakMentese, jelenletiFejlecBetoltese, jelenletiFejlecMentese, kiallasMentes, kiallasokBetoltese, kiallasTorles, kiallasUtvonalakBetoltese, mentes, muhelyTetelMentese, muhelyTetelTorlese, muhelyTetelekBetoltese, projektekBetoltese, projektekMentese, soforNevRogzitese, torles, zarolSoforNev } from '../core/data/storage'
+import type { FuvarDraft, FuvarRecord, Gyar, KiallasRecord, KiallasUtvonal, MunkaidoTetel, MunkaidoTetelDraft, Projekt } from '../core/data/storage'
 import { FuvarForm } from '../features/fuvar/FuvarForm'
 import type { FuvarFormState } from '../features/fuvar/FuvarForm'
 import { IrodaiOsszesito } from '../features/fuvar/IrodaiOsszesito'
@@ -14,7 +14,7 @@ import { MunkaidoAblak } from '../features/munkaido/Munkaido'
 import { JelenletiIv } from '../features/munkaido/JelenletiIv'
 import { CloudSync } from '../features/cloud/CloudSync'
 import { OfficeRateSync } from '../features/cloud/OfficeRateSync'
-import { OFFICE_ALLAS_DIJ_KEY, OFFICE_FUVAR_FIX_KEY, OFFICE_MIN_M3_KEY } from '../core/data/officeRates'
+import { OFFICE_ALLAS_DIJ_KEY, OFFICE_MIN_M3_KEY } from '../core/data/officeRates'
 import { Ablak } from '../ui/components/Ablak'
 import { Dashboard } from '../features/dashboard/Dashboard'
 import { ikonok } from '../ui/theme/ikon'
@@ -27,11 +27,6 @@ const helyiNap = (datum: Date) =>
   `${datum.getFullYear()}-${String(datum.getMonth() + 1).padStart(2, '0')}-${String(datum.getDate()).padStart(2, '0')}`
 const maiNap = () => helyiNap(new Date())
 
-const aktualisIdo = () => {
-  const most = new Date()
-  return `${String(most.getHours()).padStart(2, '0')}:${String(most.getMinutes()).padStart(2, '0')}`
-}
-
 const uresFuvar = (): FuvarFormState => ({
   fuvarszam: '',
   szallitolevel: '',
@@ -41,7 +36,7 @@ const uresFuvar = (): FuvarFormState => ({
   m3: '',
   km: '',
   allasDb: 0,
-  ido: aktualisIdo(),
+  ejszakai: false,
   datum: maiNap()
 })
 
@@ -53,7 +48,7 @@ function datumFormazasa(iso: string): string {
   const datum = new Date(iso)
   return Number.isNaN(datum.getTime())
     ? 'Ismeretlen dátum'
-    : new Intl.DateTimeFormat('hu-HU', { dateStyle: 'medium', timeStyle: 'short' }).format(datum)
+    : new Intl.DateTimeFormat('hu-HU', { dateStyle: 'medium' }).format(datum)
 }
 
 const FULEK = [
@@ -72,6 +67,9 @@ export default function App() {
     document.startViewTransition(() => flushSync(() => setFul(id)))
   }
   const [fuvarok, setFuvarok] = useState<FuvarRecord[]>([])
+  const [kiallasok, setKiallasok] = useState<KiallasRecord[]>([])
+  const [kiallasUtvonalak, setKiallasUtvonalak] = useState<KiallasUtvonal[]>([])
+  const [kivalasztottKiallas, setKivalasztottKiallas] = useState('')
   const [munkaidoTetelek, setMunkaidoTetelek] = useState<MunkaidoTetel[]>([])
   const [jelenletiFejlec, setJelenletiFejlec] = useState({ munkaltato: '', dolgozo: '' })
   const [appFejlec, setAppFejlec] = useState(config.appName)
@@ -86,11 +84,6 @@ export default function App() {
   const [elsoHiba, setElsoHiba] = useState('')
   const [gyarak, setGyarak] = useState<Gyar[]>([])
   const [projektek, setProjektek] = useState<Projekt[]>([])
-  const [fuvarFixDij, setFuvarFixDij] = useState(() => {
-    const stored = localStorage.getItem(OFFICE_FUVAR_FIX_KEY)
-    const value = stored === null ? config.fuvarFixDij : Number(stored)
-    return Number.isSafeInteger(value) && value >= 0 ? value : config.fuvarFixDij
-  })
   const [alapMinM3, setAlapMinM3] = useState(() => {
     const stored = localStorage.getItem(OFFICE_MIN_M3_KEY)
     const value = stored === null ? config.minM3 : Number(stored)
@@ -107,6 +100,8 @@ export default function App() {
   const [hiba, setHiba] = useState('')
   const [mentesUzenet, setMentesUzenet] = useState('')
   const [mentesRegi, setMentesRegi] = useState(false)
+  const [fuvarMentesUzenet, setFuvarMentesUzenet] = useState('')
+  const [mentettListaUgras, setMentettListaUgras] = useState(false)
 
   useEffect(() => {
     const utolso = Number(localStorage.getItem(UTOLSO_MENTES_KULCS) ?? 0)
@@ -116,10 +111,26 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const importFajlRef = useRef<HTMLInputElement>(null)
+  const mentettFuvarListaRef = useRef<HTMLElement>(null)
+
+  const fuvarBevetel = fuvarok.reduce((osszeg, fuvar) => osszeg + fuvar.total, 0)
+  const muhelyBevetel = munkaidoTetelek
+    .filter((tetel) => tetel.tipus === 'muhely')
+    .reduce((osszeg, tetel) => osszeg + tetel.total, 0)
+
+  useEffect(() => {
+    if (!mentettListaUgras) return
+    setMentettListaUgras(false)
+    mentettFuvarListaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [fuvarok, mentettListaUgras])
 
   useEffect(() => {
     try {
       setFuvarok(betoltes())
+      setKiallasok(kiallasokBetoltese())
+      const routes = kiallasUtvonalakBetoltese()
+      setKiallasUtvonalak(routes)
+      setKivalasztottKiallas(routes[0]?.id ?? '')
     } catch (error) {
       setHiba(`Nem sikerült betölteni a mentett fuvarokat. ${hibaSzoveg(error)}`)
     }
@@ -273,6 +284,10 @@ export default function App() {
   function cloudAdatokFrissitese() {
     try {
       setFuvarok(betoltes())
+      setKiallasok(kiallasokBetoltese())
+      const routes = kiallasUtvonalakBetoltese()
+      setKiallasUtvonalak(routes)
+      setKivalasztottKiallas(routes[0]?.id ?? '')
       setGyarak(gyarakBetoltese(config.gyarak, config.minM3, config.allasDij))
       setProjektek(projektekBetoltese(config.projektek))
       setMunkaidoTetelek(muhelyTetelekBetoltese())
@@ -292,12 +307,9 @@ export default function App() {
     try {
       setGyarak(gyarakBetoltese(config.gyarak, config.minM3, config.allasDij))
       setProjektek(projektekBetoltese(config.projektek))
-      const stored = localStorage.getItem(OFFICE_FUVAR_FIX_KEY)
-      if (stored !== null) {
-        const value = Number(stored)
-        if (!Number.isSafeInteger(value) || value < 0) throw new Error('A kiküldött fuvar fix díja hibás.')
-        setFuvarFixDij(value)
-      }
+      const routes = kiallasUtvonalakBetoltese()
+      setKiallasUtvonalak(routes)
+      setKivalasztottKiallas(routes[0]?.id ?? '')
       const minM3Stored = localStorage.getItem(OFFICE_MIN_M3_KEY)
       if (minM3Stored !== null) {
         const value = Number(minM3Stored)
@@ -323,9 +335,13 @@ export default function App() {
     try {
       const fajlTartalom = await fajl.text()
       const mentesAdat = adatmentesEllenorzese(JSON.parse(fajlTartalom) as unknown, config.minM3, config.allasDij)
-      if (!window.confirm(`A mentés ${new Date(mentesAdat.letrehozva).toLocaleString('hu-HU')} időpontban készült.\n\nA visszaállítás lecseréli ezen az eszközön az összes fuvar-, gyár-, projekt-, jelenléti és fejlécadatot. Folytatod?`)) return
+      if (!window.confirm(`A mentés ${new Date(mentesAdat.letrehozva).toLocaleString('hu-HU')} időpontban készült.\n\nA visszaállítás lecseréli ezen az eszközön az összes fuvar-, kiállás-, gyár-, projekt-, jelenléti és fejlécadatot. Folytatod?`)) return
       adatmentesVisszaallitasa(mentesAdat)
       setFuvarok(betoltes())
+      setKiallasok(kiallasokBetoltese())
+      const routes = kiallasUtvonalakBetoltese()
+      setKiallasUtvonalak(routes)
+      setKivalasztottKiallas(routes[0]?.id ?? '')
       setGyarak(gyarakBetoltese(config.gyarak, config.minM3, config.allasDij))
       setProjektek(projektekBetoltese(config.projektek))
       setMunkaidoTetelek(muhelyTetelekBetoltese())
@@ -362,9 +378,36 @@ export default function App() {
       setUrlap(uresFuvar())
       setSzerkesztettId(null)
       setPanelNyitva(false)
+      setFuvarMentesUzenet('A fuvar mentése sikerült. A mentett fuvarok listája lent látható.')
+      setMentettListaUgras(true)
       setHiba('')
     } catch (error) {
       setHiba(`Nem sikerült elmenteni a fuvart. ${hibaSzoveg(error)}`)
+    }
+  }
+
+  function kiallasKezelese() {
+    const route = kiallasUtvonalak.find((item) => item.id === kivalasztottKiallas)
+    if (!route) {
+      setHiba('Válassz ki egy irodától kapott kiállási útvonalat.')
+      return
+    }
+    try {
+      const [driverName, ...plateParts] = appFejlec.split('|')
+      setKiallasok(kiallasMentes(route, driverName.trim(), plateParts.join('|').trim()))
+      setHiba('')
+    } catch (error) {
+      setHiba(`Nem sikerült elmenteni a kiállást. ${hibaSzoveg(error)}`)
+    }
+  }
+
+  function kiallasTorlesKezelese(record: KiallasRecord) {
+    if (!window.confirm(`Biztosan törlöd ezt a kiállást (${record.honnan} → ${record.hova})?`)) return
+    try {
+      setKiallasok(kiallasTorles(record.id))
+      setHiba('')
+    } catch (error) {
+      setHiba(`Nem sikerült törölni a kiállást. ${hibaSzoveg(error)}`)
     }
   }
 
@@ -378,7 +421,7 @@ export default function App() {
       m3: String(record.m3),
       km: String(record.km),
       allasDb: record.allasDb,
-      ido: record.ido ?? new Date(record.createdAt).toTimeString().slice(0, 5),
+      ejszakai: Boolean(record.ejszakai),
       datum: helyiNap(new Date(record.createdAt))
     })
     setSzerkesztettId(record.id)
@@ -479,15 +522,61 @@ export default function App() {
 
         <div className="tab-panel" data-tab="fuvar" hidden={ful !== 'fuvar'}>
           <Dashboard fuvarok={fuvarok} munkaidoTetelek={munkaidoTetelek} />
+        <div className="saved-trip-shortcut">
+          <span>{fuvarok.length} mentett fuvar</span>
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={() => mentettFuvarListaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          >
+            Ugrás a mentett fuvarokhoz ↓
+          </button>
+        </div>
+        <section className="departure-panel">
+          <div className="section-heading">
+            <h2>Kiállás rögzítése</h2>
+          </div>
+          {kiallasUtvonalak.length === 0 ? (
+            <p className="hint">Még nincs beérkezett kiállási útvonal. Az irodai árlistából küldött útvonalak itt jelennek meg.</p>
+          ) : (
+            <div className="backup-actions">
+              <label className="field">
+                Kiállási útvonal
+                <select value={kivalasztottKiallas} onChange={(event) => setKivalasztottKiallas(event.target.value)}>
+                  {kiallasUtvonalak.map((route) => (
+                    <option key={route.id} value={route.id}>
+                      {route.honnan} → {route.hova} · {route.dij.toLocaleString('hu-HU')} Ft
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button type="button" className="button-primary" onClick={kiallasKezelese}>Kiállás rögzítése</button>
+            </div>
+          )}
+          {kiallasok.length > 0 && (
+            <div className="record-list">
+              {kiallasok.map((record) => (
+                <Ablak key={record.id} title={`${record.honnan} → ${record.hova}`}>
+                  <div className="record-meta">{datumFormazasa(record.createdAt)} · {record.driverName}</div>
+                  <div className="record-total">{record.dij.toLocaleString('hu-HU')} Ft kiállási díj</div>
+                  <div className="record-actions">
+                    <button type="button" className="button-danger" onClick={() => kiallasTorlesKezelese(record)}>Törlés</button>
+                  </div>
+                </Ablak>
+              ))}
+            </div>
+          )}
+        </section>
         <div className="sheet" data-open={panelNyitva} role="dialog" aria-label="Fuvar űrlap">
           <button type="button" className="sheet-backdrop" aria-label="Bezárás" tabIndex={-1} onClick={szerkesztesMegszakitasa} />
           <div className="sheet-body">
-            <button type="button" className="sheet-close" aria-label="Bezárás" onClick={szerkesztesMegszakitasa}>✕</button>
+            <div className="sheet-topbar">
+              <button type="button" className="button-secondary" onClick={szerkesztesMegszakitasa}>← Vissza a fuvarokhoz</button>
+            </div>
             <FuvarForm
               value={urlap}
               gyarak={gyarak}
               projektek={projektek}
-              arszabaly={{ ...config, fuvarFixDij }}
               onChange={setUrlap}
               onSave={mentesKezelese}
               onCancelEdit={szerkesztesMegszakitasa}
@@ -498,11 +587,12 @@ export default function App() {
         <button type="button" className="fab" onClick={() => setPanelNyitva(true)} hidden={ful !== 'fuvar' || panelNyitva}>
           <span aria-hidden="true">＋</span> Új fuvar
         </button>
-        <section aria-labelledby="saved-heading">
+        <section ref={mentettFuvarListaRef} aria-labelledby="saved-heading" tabIndex={-1}>
           <div className="section-heading">
             <h1 id="saved-heading">Mentett fuvarok</h1>
             <span>{fuvarok.length} db</span>
           </div>
+          {fuvarMentesUzenet && <p className="backup-message" role="status">{fuvarMentesUzenet}</p>}
           {fuvarok.length === 0 ? (
             <div className="empty-state">
               <strong>Még nincs mentett fuvar</strong>
@@ -518,7 +608,7 @@ export default function App() {
                     {record.projekt && <span className="chip">{record.projekt}</span>}
                     <span className="chip">{record.m3} m³</span>
                     <span className="chip">{record.km} km</span>
-                    {(record.ejszakaPotlek ?? 0) > 0 && <span className="chip">🌙 éjszakai</span>}
+                    {record.ejszakai && <span className="chip">🌙 éjszakai tarifa</span>}
                     {record.allasDb > 0 && <span className="chip">állás {record.allasDb}×15′</span>}
                   </div>
                   {record.fuvarszam && <div>Fuvarlevél: {record.fuvarszam}</div>}
@@ -564,8 +654,9 @@ export default function App() {
             <h1 id="income-heading">Bevételek</h1>
           </div>
           <div className="income-summary">
-            <div><span>Fuvarbevétel</span><strong>{fuvarok.reduce((osszeg, fuvar) => osszeg + fuvar.total, 0).toLocaleString('hu-HU')} Ft</strong></div>
-            <div><span>Műhelybevétel</span><strong>{munkaidoTetelek.filter((tetel) => tetel.tipus === 'muhely').reduce((osszeg, tetel) => osszeg + tetel.total, 0).toLocaleString('hu-HU')} Ft</strong></div>
+            <div><span>Fuvarbevétel</span><strong>{fuvarBevetel.toLocaleString('hu-HU')} Ft</strong></div>
+            <div><span>Műhelybevétel</span><strong>{muhelyBevetel.toLocaleString('hu-HU')} Ft</strong></div>
+            <div className="income-total"><span>Összes bevétel</span><strong>{(fuvarBevetel + muhelyBevetel).toLocaleString('hu-HU')} Ft</strong></div>
           </div>
           {munkaidoTetelek.some((tetel) => tetel.tipus === 'muhely') && (
             <div className="record-list mt-4">
@@ -582,7 +673,7 @@ export default function App() {
             </div>
           )}
         </section>
-        <IrodaiOsszesito fuvarok={fuvarok} gyarak={gyarak} />
+        <IrodaiOsszesito fuvarok={fuvarok} gyarak={gyarak} kiallasok={kiallasok} munkaidoTetelek={munkaidoTetelek} />
         </div>
         <div className="tab-panel" data-tab="mentes" hidden={ful !== 'mentes'}>
         <CloudSync onRemoteRestore={cloudAdatokFrissitese} />

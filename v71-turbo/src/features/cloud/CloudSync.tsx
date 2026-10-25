@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Adatmentes } from '../../core/data/storage'
 import { adatmentesEllenorzese, adatmentesExportalasa, adatmentesVisszaallitasa } from '../../core/data/storage'
+import { mergeBackupChanges } from '../../core/data/backupMerge'
+import { showSyncNotification } from '../../core/data/syncNotification'
 import {
   backupSnapshot,
   cloudBackupBetoltese,
@@ -25,6 +27,7 @@ interface PendingChoice {
   kind: 'initial' | 'conflict'
   local: Adatmentes
   cloud: CloudBackupRow
+  conflicts?: string[]
 }
 
 const CONFIG_KEY = 'beton_fuvar_cloud_config_v1'
@@ -95,6 +98,7 @@ export function CloudSync({ onRemoteRestore }: CloudSyncProps) {
   const [pendingChoice, setPendingChoice] = useState<PendingChoice | null>(null)
   const [busy, setBusy] = useState(false)
   const running = useRef(false)
+  const lastConflictNotice = useRef('')
   const restore = useRef(onRemoteRestore)
   restore.current = onRemoteRestore
 
@@ -149,6 +153,7 @@ export function CloudSync({ onRemoteRestore }: CloudSyncProps) {
     restore.current()
     setPendingChoice(null)
     setMessage('A felhőadatok letöltése és helyi mentése sikerült.')
+    showSyncNotification('Új adatok érkeztek', 'A felhőmentés adatai frissültek ezen az eszközön.')
   }
 
   async function valasztottCloudLetoltese() {
@@ -187,9 +192,9 @@ export function CloudSync({ onRemoteRestore }: CloudSyncProps) {
         ? (choice === 'upload' ? 'upload-local' : 'download-cloud')
         : syncDontes(local, cloud, marker)
 
-      if (decision === 'initial-choice' || decision === 'conflict') {
+      if (decision === 'initial-choice') {
         if (!cloud) throw new Error('A felhőmentés a döntés közben eltűnt. Indítsd újra a szinkront.')
-        setPendingChoice({ kind: decision === 'initial-choice' ? 'initial' : 'conflict', local, cloud })
+        setPendingChoice({ kind: 'initial', local, cloud })
         setMessage('')
         return
       }
@@ -210,6 +215,41 @@ export function CloudSync({ onRemoteRestore }: CloudSyncProps) {
         restore.current()
         setPendingChoice(null)
         setMessage('A másik eszköz újabb adatai letöltődtek.')
+        showSyncNotification('Új adatok érkeztek', 'A másik eszköz módosításai letöltődtek.')
+        return
+      }
+
+      if (decision === 'conflict') {
+        if (!cloud || !marker) throw new Error('Az összevonáshoz szükséges korábbi mentés hiányzik. Válassz a helyi és a felhőadatok között.')
+        const base = backupEllenorzese({
+          ...local,
+          adatok: JSON.parse(marker.snapshot) as Adatmentes['adatok']
+        }).adatok
+        const merged = mergeBackupChanges(base, local, cloud.backup)
+        if (merged.conflicts.length > 0) {
+          setPendingChoice({ kind: 'conflict', local, cloud, conflicts: merged.conflicts })
+          setMessage('')
+          if (lastConflictNotice.current !== cloud.updated_at) {
+            lastConflictNotice.current = cloud.updated_at
+            showSyncNotification('Szinkronütközés', 'Azonos adat eltérően módosult két eszközön. Nyisd meg a felhőszinkront, és válassz mentést.')
+          }
+          return
+        }
+
+        const updated = await cloudBackupMentese(client, userId, merged.value, cloud.updated_at)
+        if (!updated) {
+          const latest = await cloudBackupBetoltese(client, userId)
+          if (!latest) throw new Error('A felhőadat közben megváltozott. Nem történt felülírás; próbáld újra a szinkront.')
+          setPendingChoice({ kind: 'conflict', local, cloud: { ...latest, backup: backupEllenorzese(latest.backup) } })
+          setMessage('')
+          return
+        }
+        adatmentesVisszaallitasa(merged.value)
+        storeMarker(key, merged.value, updated)
+        restore.current()
+        setPendingChoice(null)
+        setMessage('A két eszköz külön módosításai biztonságosan össze lettek fésülve.')
+        showSyncNotification('Adatok összevonva', 'A két eszköz új fuvarjai és módosításai szinkronba kerültek.')
         return
       }
 
@@ -330,7 +370,7 @@ export function CloudSync({ onRemoteRestore }: CloudSyncProps) {
         <div className="cloud-account">
           <p>Bejelentkezve: <strong>{userEmail}</strong></p>
           <div className="backup-actions">
-            <button type="button" className="button-primary" disabled={busy} onClick={() => { void synchronize() }}>Szinkronizálás most</button>
+            <button type="button" className="button-primary" disabled={busy} onClick={() => { void synchronize() }}>Kényszerített szinkron · biztonságos összevonás</button>
             <button type="button" className="button-secondary" disabled={busy} onClick={() => { void kijelentkezes() }}>Kijelentkezés</button>
           </div>
         </div>
@@ -354,6 +394,7 @@ export function CloudSync({ onRemoteRestore }: CloudSyncProps) {
         <div className="cloud-choice" role="alert">
           <strong>{pendingChoice.kind === 'initial' ? 'Első szinkron: válaszd ki, melyik mentés legyen az alap.' : 'Eltérő módosítás van mindkét eszközön; automatikusan nem írjuk felül.'}</strong>
           <p>Helyi eszköz: {pendingChoice.local.adatok.fuvarok.length} fuvar · felhő: {backupEllenorzese(pendingChoice.cloud.backup).adatok.fuvarok.length} fuvar.</p>
+          {pendingChoice.conflicts && <p>Azonos rekord eltérő módosítása: {pendingChoice.conflicts.join('; ')}. Válassz, melyik mentés maradjon meg.</p>}
           <div className="backup-actions">
             <button type="button" className="button-primary" disabled={busy} onClick={() => { void synchronize('upload') }}>Helyi adatok feltöltése</button>
             <button type="button" className="button-secondary" disabled={busy} onClick={() => { void valasztottCloudLetoltese() }}>Felhőadatok letöltése</button>

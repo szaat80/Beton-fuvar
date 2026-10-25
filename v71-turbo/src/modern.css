@@ -115,6 +115,8 @@
   .section-heading span { padding: 0.15rem 0.7rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 
   .factory-row, .zone-preview, .project-manager > summary { background: var(--surface-2); border: 0; border-radius: 1rem; }
+  .factory-project-group { margin-top: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); }
+  .factory-project-group h3 { margin: 0 0 0.75rem; color: var(--text); font-size: 1rem; }
   .zone-preview > div { background: var(--surface); border: 0; border-radius: 0.8rem; box-shadow: var(--shadow); }
   .factory-form, .project-manager { border-top-color: var(--line); }
   .cloud-account { border-color: var(--line); border-radius: 1rem; }
@@ -303,6 +305,22 @@
   }
   .sheet[data-open='true'] .sheet-body { transform: none; }
   .sheet-body::before { content: ''; display: block; width: 2.6rem; height: 0.3rem; margin: 0.3rem auto 0.6rem; border-radius: 999px; background: var(--line); }
+  .sheet-topbar {
+    position: sticky;
+    z-index: 10;
+    top: 0;
+    display: flex;
+    align-items: center;
+    min-height: 3.5rem;
+    margin: -0.5rem -1rem 0.75rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+    box-shadow: 0 4px 16px rgb(15 23 42 / 8%);
+  }
+  .sheet-body { padding-top: 4.5rem; }
+  .sheet-topbar { margin-top: -4.5rem; }
+  .sheet-topbar .button-secondary { min-height: 2.75rem; }
   .sheet-close {
     position: sticky;
     top: 0;
@@ -326,22 +344,39 @@
   .attendance-print-area { color: #111827; background: #fff; border-radius: 1rem; box-shadow: var(--shadow); }
 }
 
-@media (min-width: 52rem) {
+@media (min-width: 52rem), (hover: hover) and (pointer: fine) {
   .bento { grid-template-columns: repeat(4, 1fr); }
   .tile-hero { grid-column: span 2; grid-row: span 2; }
   .app-content { width: min(100%, 56rem); }
   .sheet-body {
-    inset: 50% auto auto 50%;
-    width: min(40rem, 92vw);
-    max-height: 90dvh;
-    padding-bottom: 1.5rem;
-    border-radius: 2rem;
-    translate: -50% -50%;
-    transform: scale(0.95);
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-height: 100dvh;
+    overflow-y: auto;
+    padding: 5rem clamp(1rem, 5vw, 5rem) 2rem;
+    border-radius: 0;
+    translate: none;
+    transform: none;
     opacity: 0;
-    transition: transform 0.35s var(--ease), opacity 0.3s;
+    transition: opacity 0.2s ease;
   }
-  .sheet[data-open='true'] .sheet-body { transform: none; opacity: 1; }
+  .sheet[data-open='true'] .sheet-body { opacity: 1; }
+  .sheet-body::before { display: none; }
+  .sheet-body .sheet-close {
+    position: fixed;
+    top: 1.25rem;
+    right: 1.5rem;
+    float: none;
+    margin: 0;
+  }
+  .sheet-body .form-grid { column-gap: 1rem; row-gap: 1rem; }
+  .sheet-body .ablak-title { padding-right: 3rem; font-size: 1.3rem; }
+  .sheet-body .ablak { width: min(100%, 72rem); margin: 0 auto; padding-top: 1rem; }
+}
+
+@media (max-width: 40rem) and (hover: hover) and (pointer: fine) {
+  .sheet-body .form-grid { grid-template-columns: 1fr; }
 }
 
 @media print {

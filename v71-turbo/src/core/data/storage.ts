@@ -13,6 +13,8 @@ export interface FuvarRecord {
   projekt: string
   projektDij: number | null
   m3: number
+  minM3?: number
+  szamlazottM3?: number
   km: number
   allasDb: number
   betonDij: number
@@ -20,6 +22,7 @@ export interface FuvarRecord {
   allasDij: number
   ido?: string
   ejszakaPotlek?: number
+  ejszakai?: boolean
   total: number
 }
 
@@ -30,12 +33,32 @@ export interface Gyar {
   zonaLepes: number
   minM3: number
   allasDij: number
+  ejszakaiTarifa?: {
+    fuvarAlap: number
+    zonaLepes: number
+  }
   dijszabaly?: Dijszabaly
+}
+
+export interface KiallasUtvonal {
+  id: string
+  honnan: string
+  hova: string
+  dij: number
+}
+
+export interface KiallasRecord extends Omit<KiallasUtvonal, 'id'> {
+  id: string
+  routeId?: string
+  createdAt: string
+  driverName: string
+  plateNumber: string
 }
 
 export interface Projekt {
   nev: string
   arM3: number | null
+  gyarId?: string
 }
 
 export type MunkaTipus = 'fuvarozas' | 'muhely'
@@ -67,6 +90,8 @@ export interface Adatmentes {
     gyarak: Gyar[]
     munkaidoTetelek: MunkaidoTetel[]
     projektek: Projekt[]
+    kiallasUtvonalak?: KiallasUtvonal[]
+    kiallasok?: KiallasRecord[]
     jelenletiFejlec: { munkaltato: string; dolgozo: string }
     appFejlec: string
   }
@@ -78,6 +103,8 @@ export const MUHELY_STORAGE_KEY = 'muhely_tetelek_v70'
 export const JELENLETI_FEJLEC_KEY = 'jelenleti_fejlec_v70'
 export const APP_FEJLEC_STORAGE_KEY = 'app_fejlec_v70'
 export const PROJEKT_STORAGE_KEY = 'projektek_v70'
+export const KIAL_UVONALAK_STORAGE_KEY = 'kiallas_utvonalak_v1'
+export const KIAL_STORAGE_KEY = 'kiallasok_v1'
 
 export const SOFOR_NEV_ZAR_KEY = 'sofor_nev_zarolt_v1'
 
@@ -140,6 +167,8 @@ export function adatmentesExportalasa(alapGyarak: Gyar[], alapProjektek: string[
       gyarak: gyarakBetoltese(alapGyarak, alapMinM3, alapAllasDij),
       munkaidoTetelek: muhelyTetelekBetoltese(),
       projektek: projektekBetoltese(alapProjektek),
+      kiallasUtvonalak: kiallasUtvonalakBetoltese(),
+      kiallasok: kiallasokBetoltese(),
       jelenletiFejlec: jelenletiFejlecBetoltese(),
       appFejlec
     }
@@ -171,6 +200,8 @@ export function adatmentesEllenorzese(adat: unknown, alapMinM3: number, alapAlla
   const gyarak = adatok.gyarak
   const munkaidoTetelek = adatok.munkaidoTetelek
   const projektek = adatok.projektek
+  const kiallasUtvonalak = adatok.kiallasUtvonalak ?? []
+  const kiallasok = adatok.kiallasok ?? []
   if (!Array.isArray(fuvarok) || !fuvarok.every(ervenyesFuvar)
     || new Set(fuvarok.map((fuvar) => fuvar.id)).size !== fuvarok.length) {
     throw new Error('A mentés fuvarlistája hibás vagy ismétlődő azonosítót tartalmaz.')
@@ -186,8 +217,17 @@ export function adatmentesEllenorzese(adat: unknown, alapMinM3: number, alapAlla
     throw new Error('A mentés munkaidő-listája hibás vagy ismétlődő azonosítót tartalmaz.')
   }
   if (!Array.isArray(projektek) || !projektek.every(ervenyesProjekt)
-    || new Set(projektek.map((projekt) => projekt.nev.trim().toLocaleLowerCase('hu-HU'))).size !== projektek.length) {
-    throw new Error('A mentés projektlistája hibás vagy ismétlődő nevet tartalmaz.')
+    || projektek.some((projekt) => projekt.gyarId !== undefined && !gyarak.some((gyar) => gyar.id === projekt.gyarId))
+    || new Set(projektek.map(projektKulcs)).size !== projektek.length) {
+    throw new Error('A mentés projektlistája hibás, ismeretlen gyárhoz tartozik vagy ugyanazon gyárnál ismétlődő nevet tartalmaz.')
+  }
+  if (!Array.isArray(kiallasUtvonalak) || !kiallasUtvonalak.every(ervenyesKiallasUtvonal)
+    || new Set(kiallasUtvonalak.map((utvonal) => utvonal.id)).size !== kiallasUtvonalak.length) {
+    throw new Error('A mentés kiállási útvonal-listája hibás.')
+  }
+  if (!Array.isArray(kiallasok) || !kiallasok.every(ervenyesKiallas)
+    || new Set(kiallasok.map((kiallas) => kiallas.id)).size !== kiallasok.length) {
+    throw new Error('A mentés kiállás-listája hibás vagy ismétlődő azonosítót tartalmaz.')
   }
   if (!ervenyesFejlec(adatok.jelenletiFejlec)
     || typeof adatok.appFejlec !== 'string'
@@ -213,6 +253,8 @@ export function adatmentesEllenorzese(adat: unknown, alapMinM3: number, alapAlla
       gyarak: gyarak.map((gyar) => gyarRegiFormatumAtalakitas(gyar, alapMinM3, alapAllasDij)!),
       munkaidoTetelek: munkaidoTetelek.map((tetel) => regiMunkaidoAtalakitas(tetel)!),
       projektek,
+      kiallasUtvonalak,
+      kiallasok,
       jelenletiFejlec: adatok.jelenletiFejlec,
       appFejlec: adatok.appFejlec.trim()
     }
@@ -225,6 +267,8 @@ export function adatmentesVisszaallitasa(mentes: Adatmentes): void {
     [GYAR_STORAGE_KEY, JSON.stringify(mentes.adatok.gyarak)],
     [MUHELY_STORAGE_KEY, JSON.stringify(mentes.adatok.munkaidoTetelek)],
     [PROJEKT_STORAGE_KEY, JSON.stringify(mentes.adatok.projektek)],
+    [KIAL_UVONALAK_STORAGE_KEY, JSON.stringify(mentes.adatok.kiallasUtvonalak ?? [])],
+    [KIAL_STORAGE_KEY, JSON.stringify(mentes.adatok.kiallasok ?? [])],
     [JELENLETI_FEJLEC_KEY, JSON.stringify(mentes.adatok.jelenletiFejlec)],
     [APP_FEJLEC_STORAGE_KEY, zarolasAlkalmazasa(mentes.adatok.appFejlec)]
   ])
@@ -275,13 +319,80 @@ function gyarRegiFormatumAtalakitas(adat: unknown, alapMinM3: number, alapAllasD
   if (typeof zonaLepes !== 'number' || !Number.isSafeInteger(zonaLepes) || zonaLepes < 0) {
     return null
   }
+  let ejszakaiTarifa: Gyar['ejszakaiTarifa']
+  if (gyar.ejszakaiTarifa !== undefined) {
+    const tarifa = gyar.ejszakaiTarifa
+    if (!tarifa || !Number.isSafeInteger(tarifa.fuvarAlap) || tarifa.fuvarAlap <= 0
+      || !Number.isSafeInteger(tarifa.zonaLepes) || tarifa.zonaLepes < 0) return null
+    ejszakaiTarifa = { fuvarAlap: tarifa.fuvarAlap, zonaLepes: tarifa.zonaLepes }
+  }
   let dijszabaly: Dijszabaly | undefined
   try {
     dijszabaly = dijszabalyEllenorzese(gyar.dijszabaly)
   } catch {
     return null
   }
-  return { id: gyar.id, nev: gyar.nev, fuvarAlap, zonaLepes, minM3, allasDij, ...(dijszabaly ? { dijszabaly } : {}) }
+  return { id: gyar.id, nev: gyar.nev, fuvarAlap, zonaLepes, minM3, allasDij, ...(ejszakaiTarifa ? { ejszakaiTarifa } : {}), ...(dijszabaly ? { dijszabaly } : {}) }
+}
+
+function ervenyesKiallasUtvonal(adat: unknown): adat is KiallasUtvonal {
+  if (typeof adat !== 'object' || adat === null || Array.isArray(adat)) return false
+  const utvonal = adat as Partial<KiallasUtvonal>
+  return typeof utvonal.id === 'string' && utvonal.id.trim().length > 0
+    && typeof utvonal.honnan === 'string' && utvonal.honnan.trim().length > 0
+    && typeof utvonal.hova === 'string' && utvonal.hova.trim().length > 0
+    && utvonal.honnan !== utvonal.hova
+    && typeof utvonal.dij === 'number' && Number.isSafeInteger(utvonal.dij) && utvonal.dij >= 0
+}
+
+function ervenyesKiallas(adat: unknown): adat is KiallasRecord {
+  if (!ervenyesKiallasUtvonal(adat)) return false
+  const kiallas = adat as Partial<KiallasRecord>
+  return typeof kiallas.createdAt === 'string' && !Number.isNaN(Date.parse(kiallas.createdAt))
+    && (kiallas.routeId === undefined || typeof kiallas.routeId === 'string')
+    && typeof kiallas.driverName === 'string'
+    && typeof kiallas.plateNumber === 'string'
+}
+
+export function kiallasUtvonalakBetoltese(): KiallasUtvonal[] {
+  const raw = localStorage.getItem(KIAL_UVONALAK_STORAGE_KEY)
+  if (raw === null) return []
+  const parsed: unknown = JSON.parse(raw)
+  if (!Array.isArray(parsed) || !parsed.every(ervenyesKiallasUtvonal)) {
+    throw new Error('A mentett kiállási útvonal-lista hibás.')
+  }
+  return parsed
+}
+
+export function kiallasokBetoltese(): KiallasRecord[] {
+  const raw = localStorage.getItem(KIAL_STORAGE_KEY)
+  if (raw === null) return []
+  const parsed: unknown = JSON.parse(raw)
+  if (!Array.isArray(parsed) || !parsed.every(ervenyesKiallas)) {
+    throw new Error('A mentett kiálláslista hibás.')
+  }
+  return parsed
+}
+
+export function kiallasMentes(utvonal: KiallasUtvonal, driverName: string, plateNumber: string): KiallasRecord[] {
+  if (!ervenyesKiallasUtvonal(utvonal)) throw new Error('A kiválasztott kiállási útvonal hibás.')
+  const record: KiallasRecord = {
+    ...utvonal,
+    id: globalThis.crypto?.randomUUID?.() ?? `kiallas-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    routeId: utvonal.id,
+    createdAt: new Date().toISOString(),
+    driverName,
+    plateNumber
+  }
+  const updated = [record, ...kiallasokBetoltese()]
+  localStorage.setItem(KIAL_STORAGE_KEY, JSON.stringify(updated))
+  return updated
+}
+
+export function kiallasTorles(id: string): KiallasRecord[] {
+  const updated = kiallasokBetoltese().filter((record) => record.id !== id)
+  localStorage.setItem(KIAL_STORAGE_KEY, JSON.stringify(updated))
+  return updated
 }
 
 export function gyarakBetoltese(alapGyarak: Gyar[], alapMinM3: number, alapAllasDij: number): Gyar[] {
@@ -331,6 +442,8 @@ function ervenyesFuvar(adat: unknown): adat is FuvarRecord {
     && typeof zonaLepes === 'number' && Number.isSafeInteger(zonaLepes) && zonaLepes >= 0
     && typeof record.projekt === 'string'
     && typeof record.m3 === 'number' && Number.isFinite(record.m3)
+    && (record.minM3 === undefined || (typeof record.minM3 === 'number' && Number.isFinite(record.minM3) && record.minM3 > 0))
+    && (record.szamlazottM3 === undefined || (typeof record.szamlazottM3 === 'number' && Number.isFinite(record.szamlazottM3) && record.szamlazottM3 > 0))
     && typeof record.km === 'number' && Number.isFinite(record.km)
     && typeof record.allasDb === 'number' && Number.isSafeInteger(record.allasDb) && record.allasDb >= 0 && record.allasDb <= 20
     && typeof record.betonDij === 'number' && Number.isFinite(record.betonDij)
@@ -482,8 +595,13 @@ function ervenyesProjekt(adat: unknown): adat is Projekt {
   const projekt = adat as Partial<Projekt>
   return typeof projekt.nev === 'string'
     && projekt.nev.trim().length > 0
+    && (projekt.gyarId === undefined || (typeof projekt.gyarId === 'string' && projekt.gyarId.trim().length > 0))
     && (projekt.arM3 === null
       || (typeof projekt.arM3 === 'number' && Number.isSafeInteger(projekt.arM3) && projekt.arM3 > 0))
+}
+
+function projektKulcs(projekt: Projekt): string {
+  return `${projekt.gyarId ?? ''}:${projekt.nev.trim().toLocaleLowerCase('hu-HU')}`
 }
 
 export function projektekBetoltese(alapNevek: string[]): Projekt[] {
@@ -498,8 +616,8 @@ export function projektekBetoltese(alapNevek: string[]): Projekt[] {
 
 export function projektekMentese(projektek: Projekt[]): Projekt[] {
   if (!projektek.every(ervenyesProjekt)
-    || new Set(projektek.map((projekt) => projekt.nev.trim().toLocaleLowerCase('hu-HU'))).size !== projektek.length) {
-    throw new Error('A projektlista érvénytelen vagy ismétlődő nevet tartalmaz, ezért nem mentettem el.')
+    || new Set(projektek.map(projektKulcs)).size !== projektek.length) {
+    throw new Error('A projektlista érvénytelen vagy ugyanazon gyárhoz ismétlődő nevet tartalmaz, ezért nem mentettem el.')
   }
   localStorage.setItem(PROJEKT_STORAGE_KEY, JSON.stringify(projektek))
   return projektek

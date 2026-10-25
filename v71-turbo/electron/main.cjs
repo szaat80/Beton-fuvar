@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain, Notification, shell } = require('electron')
 const fs = require('node:fs/promises')
 const path = require('node:path')
 
@@ -17,6 +17,20 @@ function validateSender(event) {
     throw new Error('A mentés csak a telepített alkalmazásból indítható.')
   }
 }
+
+ipcMain.handle('notification:data-change', (event, title, message) => {
+  validateSender(event)
+  if (typeof title !== 'string' || title.length > 120
+    || typeof message !== 'string' || message.length > 500) {
+    throw new Error('Az értesítés szövege érvénytelen.')
+  }
+  shell.beep()
+  if (Notification.isSupported()) {
+    new Notification({ title, body: message, silent: true }).show()
+  } else {
+    return dialog.showMessageBox({ type: 'info', title, message, buttons: ['Rendben'] })
+  }
+})
 
 ipcMain.handle('backup:save-file', async (event, fileName, contents, encoding = 'utf8') => {
   validateSender(event)

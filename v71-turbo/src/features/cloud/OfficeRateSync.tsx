@@ -5,6 +5,7 @@ import {
   loadOfficeRateMarker,
   saveOfficeRateMarker
 } from '../../core/data/officeRates'
+import { showSyncNotification } from '../../core/data/syncNotification'
 
 interface OfficeRateSyncProps {
   onRatesApplied: () => void
@@ -71,6 +72,7 @@ export function OfficeRateSync({ onRatesApplied, onError }: OfficeRateSyncProps)
         onRatesAppliedRef.current()
         onErrorRef.current('')
         if (active) setStatus(`Új árlista átvéve az irodától · ${new Date(data.updated_at).toLocaleString('hu-HU')}.`)
+        showSyncNotification('Új irodai módosítás érkezett', 'Az árlista, a projektek és a kiállási útvonalak frissültek.')
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Az irodai árfrissítést nem sikerült átvenni.'
         if (active) setStatus(message)

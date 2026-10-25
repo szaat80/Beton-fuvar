@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import type { Gyar, Projekt } from '../../core/data/storage'
 import { ZONA_SAVOK } from '../../core/domain/szamitas'
-import { dijszabalyEllenorzese, type Dijszabaly } from '../../core/domain/dijszabaly'
 import { Ablak } from '../../ui/components/Ablak'
 import { Projektkezelo } from './Projektkezelo'
 
@@ -22,31 +21,9 @@ export function Gyarkezelo({ gyarak, projektek, alapMinM3, alapAllasDij, onSave,
   const [minM3, setMinM3] = useState(String(alapMinM3))
   const [allasDij, setAllasDij] = useState(String(alapAllasDij))
   const [hiba, setHiba] = useState('')
-  const [kiallasBe, setKiallasBe] = useState(false)
-  const [kiallasKuszob, setKiallasKuszob] = useState('3')
-  const [kiallasKevesebb, setKiallasKevesebb] = useState('')
-  const [kiallasTobb, setKiallasTobb] = useState('')
-  const [ejszakaBe, setEjszakaBe] = useState(false)
-  const [ejszakaKezdet, setEjszakaKezdet] = useState('22:00')
-  const [ejszakaVeg, setEjszakaVeg] = useState('06:00')
-  const [ejszakaPotlek, setEjszakaPotlek] = useState('')
-  const [allasOraBe, setAllasOraBe] = useState(false)
-  const [elsoOra, setElsoOra] = useState('')
-  const [tovabbiOra, setTovabbiOra] = useState('')
-
-  function dijszabalyUrites(szabaly?: Dijszabaly) {
-    setKiallasBe(Boolean(szabaly?.kiallas))
-    setKiallasKuszob(String(szabaly?.kiallas?.kuszob ?? 3))
-    setKiallasKevesebb(szabaly?.kiallas ? String(szabaly.kiallas.dijKevesebb) : '')
-    setKiallasTobb(szabaly?.kiallas ? String(szabaly.kiallas.dijTobb) : '')
-    setEjszakaBe(Boolean(szabaly?.ejszaka))
-    setEjszakaKezdet(szabaly?.ejszaka?.kezdet ?? '22:00')
-    setEjszakaVeg(szabaly?.ejszaka?.veg ?? '06:00')
-    setEjszakaPotlek(szabaly?.ejszaka ? String(szabaly.ejszaka.potlek) : '')
-    setAllasOraBe(Boolean(szabaly?.allasOra))
-    setElsoOra(szabaly?.allasOra ? String(szabaly.allasOra.elsoOra) : '')
-    setTovabbiOra(szabaly?.allasOra ? String(szabaly.allasOra.tovabbiOra) : '')
-  }
+  const [ejszakaiBe, setEjszakaiBe] = useState(false)
+  const [ejszakaiAlap, setEjszakaiAlap] = useState('')
+  const [ejszakaiZona, setEjszakaiZona] = useState('')
 
   function ujGyar() {
     setSzerkesztettId(null)
@@ -55,7 +32,9 @@ export function Gyarkezelo({ gyarak, projektek, alapMinM3, alapAllasDij, onSave,
     setZonaLepes('')
     setMinM3(String(alapMinM3))
     setAllasDij(String(alapAllasDij))
-    dijszabalyUrites()
+    setEjszakaiBe(false)
+    setEjszakaiAlap('')
+    setEjszakaiZona('')
     setHiba('')
   }
 
@@ -66,7 +45,9 @@ export function Gyarkezelo({ gyarak, projektek, alapMinM3, alapAllasDij, onSave,
     setZonaLepes(String(gyar.zonaLepes))
     setMinM3(String(gyar.minM3))
     setAllasDij(String(gyar.allasDij))
-    dijszabalyUrites(gyar.dijszabaly)
+    setEjszakaiBe(Boolean(gyar.ejszakaiTarifa))
+    setEjszakaiAlap(gyar.ejszakaiTarifa ? String(gyar.ejszakaiTarifa.fuvarAlap) : '')
+    setEjszakaiZona(gyar.ejszakaiTarifa ? String(gyar.ejszakaiTarifa.zonaLepes) : '')
     setHiba('')
   }
 
@@ -102,30 +83,23 @@ export function Gyarkezelo({ gyarak, projektek, alapMinM3, alapAllasDij, onSave,
       return
     }
 
-    let dijszabaly: Dijszabaly | undefined
-    try {
-      dijszabaly = dijszabalyEllenorzese({
-        ...(kiallasBe ? { kiallas: { kuszob: Number(kiallasKuszob), dijKevesebb: Number(kiallasKevesebb), dijTobb: Number(kiallasTobb) } } : {}),
-        ...(ejszakaBe ? { ejszaka: { kezdet: ejszakaKezdet, veg: ejszakaVeg, potlek: Number(ejszakaPotlek) } } : {}),
-        ...(allasOraBe ? { allasOra: { elsoOra: Number(elsoOra), tovabbiOra: Number(tovabbiOra) } } : {})
-      })
-    } catch (error) {
-      setHiba(error instanceof Error ? `${error.message} Minden díj nemnegatív, egész forintösszeg legyen.` : 'A különleges díjak hibásak.')
-      return
-    }
-    if ((kiallasBe && (kiallasKevesebb === '' || kiallasTobb === '')) || (ejszakaBe && ejszakaPotlek === '') || (allasOraBe && (elsoOra === '' || tovabbiOra === ''))) {
-      setHiba('A bekapcsolt különleges díjak minden mezőjét töltsd ki.')
+    const ejszakaiDijszabaly = ejszakaiBe
+      ? { fuvarAlap: Number(ejszakaiAlap), zonaLepes: Number(ejszakaiZona) }
+      : undefined
+    if (ejszakaiBe && (!ejszakaiDijszabaly || ejszakaiAlap === '' || !Number.isSafeInteger(ejszakaiDijszabaly.fuvarAlap) || ejszakaiDijszabaly.fuvarAlap <= 0
+      || ejszakaiZona === '' || !Number.isSafeInteger(ejszakaiDijszabaly.zonaLepes) || ejszakaiDijszabaly.zonaLepes < 0)) {
+      setHiba('Az éjszakai alapár pozitív, az övezeti lépés nemnegatív, egész forintösszeg legyen.')
       return
     }
 
-    const dijMezo = dijszabaly ? { dijszabaly } : {}
+    const nightRateField = ejszakaiDijszabaly ? { ejszakaiTarifa: ejszakaiDijszabaly } : {}
     const ujLista = szerkesztettId
       ? gyarak.map((gyar) => {
         if (gyar.id !== szerkesztettId) return gyar
-        const { dijszabaly: _regi, ...alap } = gyar
-        return { ...alap, nev: tisztaNev, fuvarAlap: ar, zonaLepes: lepes, minM3: minimum, allasDij: varakozasiDij, ...dijMezo }
+        const { ejszakaiTarifa: _regi, ...alap } = gyar
+        return { ...alap, nev: tisztaNev, fuvarAlap: ar, zonaLepes: lepes, minM3: minimum, allasDij: varakozasiDij, ...nightRateField }
       })
-      : [...gyarak, { id: globalThis.crypto?.randomUUID?.() ?? `gyar-${Date.now()}`, nev: tisztaNev, fuvarAlap: ar, zonaLepes: lepes, minM3: minimum, allasDij: varakozasiDij, ...dijMezo }]
+      : [...gyarak, { id: globalThis.crypto?.randomUUID?.() ?? `gyar-${Date.now()}`, nev: tisztaNev, fuvarAlap: ar, zonaLepes: lepes, minM3: minimum, allasDij: varakozasiDij, ...nightRateField }]
 
     if (!onSave(ujLista)) return
     ujGyar()
@@ -144,11 +118,8 @@ export function Gyarkezelo({ gyarak, projektek, alapMinM3, alapAllasDij, onSave,
               <span>Alap: {gyar.fuvarAlap.toLocaleString('hu-HU')} Ft/m³</span>
               <span>Övezeti lépés: +{gyar.zonaLepes.toLocaleString('hu-HU')} Ft/m³</span>
               <span>Minimum mennyiség: {gyar.minM3} m³</span>
-              <span>Állásidő: {gyar.dijszabaly?.allasOra
-                ? `${gyar.dijszabaly.allasOra.elsoOra.toLocaleString('hu-HU')} Ft az első óra, utána ${gyar.dijszabaly.allasOra.tovabbiOra.toLocaleString('hu-HU')} Ft / megkezdett óra`
-                : `${gyar.allasDij.toLocaleString('hu-HU')} Ft / 15 perc`}</span>
-              {gyar.dijszabaly?.kiallas && <span>Kiállási díj: {gyar.dijszabaly.kiallas.dijKevesebb.toLocaleString('hu-HU')} Ft ({gyar.dijszabaly.kiallas.kuszob} fuvar alatt), {gyar.dijszabaly.kiallas.dijTobb.toLocaleString('hu-HU')} Ft ({gyar.dijszabaly.kiallas.kuszob} fuvartól)</span>}
-              {gyar.dijszabaly?.ejszaka && <span>Éjszakai pótlék: +{gyar.dijszabaly.ejszaka.potlek.toLocaleString('hu-HU')} Ft ({gyar.dijszabaly.ejszaka.kezdet}–{gyar.dijszabaly.ejszaka.veg})</span>}
+              <span>Állásidő: {gyar.allasDij.toLocaleString('hu-HU')} Ft / 15 perc</span>
+              {gyar.ejszakaiTarifa && <span>Éjszakai tarifa: {gyar.ejszakaiTarifa.fuvarAlap.toLocaleString('hu-HU')} Ft/m³ alap, +{gyar.ejszakaiTarifa.zonaLepes.toLocaleString('hu-HU')} Ft/m³ övezetenként</span>}
             </div>
             <button type="button" className="button-secondary" onClick={() => gyarSzerkesztese(gyar)}>Szerkesztés</button>
           </div>
@@ -178,36 +149,14 @@ export function Gyarkezelo({ gyarak, projektek, alapMinM3, alapAllasDij, onSave,
           <input type="number" min="0" step="1" inputMode="numeric" value={allasDij} onChange={(event) => setAllasDij(event.target.value)} required />
         </label>
         <fieldset className="field">
-          <legend>Különleges díjak (csak ha erre a gyárra érvényes)</legend>
-          <label><input type="checkbox" checked={kiallasBe} onChange={(event) => setKiallasBe(event.target.checked)} /> Kiállási díj (naponta egyszer, a nap fuvarszáma szerint)</label>
-          {kiallasBe && (
+          <legend>Éjszakai díjszabás</legend>
+          <label><input type="checkbox" checked={ejszakaiBe} onChange={(event) => setEjszakaiBe(event.target.checked)} /> Külön éjszakai övezeti árak megadása</label>
+          {ejszakaiBe && (
             <>
-              <label className="field"><span>Ennyi fuvartól számít „sok”-nak</span>
-                <input type="number" min="1" step="1" value={kiallasKuszob} onChange={(event) => setKiallasKuszob(event.target.value)} /></label>
-              <label className="field"><span>Díj, ha kevesebb fuvar volt (Ft)</span>
-                <input type="number" min="0" step="1" value={kiallasKevesebb} onChange={(event) => setKiallasKevesebb(event.target.value)} /></label>
-              <label className="field"><span>Díj, ha elérte a küszöböt (Ft)</span>
-                <input type="number" min="0" step="1" value={kiallasTobb} onChange={(event) => setKiallasTobb(event.target.value)} /></label>
-            </>
-          )}
-          <label><input type="checkbox" checked={ejszakaBe} onChange={(event) => setEjszakaBe(event.target.checked)} /> Éjszakai pótlék (fuvaronként)</label>
-          {ejszakaBe && (
-            <>
-              <label className="field"><span>Kezdete</span>
-                <input type="time" value={ejszakaKezdet} onChange={(event) => setEjszakaKezdet(event.target.value)} /></label>
-              <label className="field"><span>Vége</span>
-                <input type="time" value={ejszakaVeg} onChange={(event) => setEjszakaVeg(event.target.value)} /></label>
-              <label className="field"><span>Pótlék (Ft / fuvar)</span>
-                <input type="number" min="0" step="1" value={ejszakaPotlek} onChange={(event) => setEjszakaPotlek(event.target.value)} /></label>
-            </>
-          )}
-          <label><input type="checkbox" checked={allasOraBe} onChange={(event) => setAllasOraBe(event.target.checked)} /> Állásidő óradíjjal (a 15 perces helyett)</label>
-          {allasOraBe && (
-            <>
-              <label className="field"><span>Első óra díja (Ft)</span>
-                <input type="number" min="0" step="1" value={elsoOra} onChange={(event) => setElsoOra(event.target.value)} /></label>
-              <label className="field"><span>Minden további megkezdett óra (Ft)</span>
-                <input type="number" min="0" step="1" value={tovabbiOra} onChange={(event) => setTovabbiOra(event.target.value)} /></label>
+              <label className="field"><span>Éjszakai alapár 0–5 km-re (Ft/m³)</span>
+                <input type="number" min="1" step="1" inputMode="numeric" value={ejszakaiAlap} onChange={(event) => setEjszakaiAlap(event.target.value)} required /></label>
+              <label className="field"><span>Éjszakai övezeti lépés (Ft/m³ övezetenként)</span>
+                <input type="number" min="0" step="1" inputMode="numeric" value={ejszakaiZona} onChange={(event) => setEjszakaiZona(event.target.value)} required /></label>
             </>
           )}
         </fieldset>
@@ -225,7 +174,7 @@ export function Gyarkezelo({ gyarak, projektek, alapMinM3, alapAllasDij, onSave,
           <button type="submit" className="button-primary">{szerkesztettId ? 'Módosítás mentése' : 'Gyár hozzáadása'}</button>
         </div>
       </form>
-      <Projektkezelo projektek={projektek} onSave={onSaveProjects} />
+      <Projektkezelo projektek={projektek} gyarak={gyarak} onSave={onSaveProjects} />
       </Ablak>
     </details>
   )

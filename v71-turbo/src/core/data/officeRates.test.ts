@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { GYAR_STORAGE_KEY, PROJEKT_STORAGE_KEY } from './storage'
+import { GYAR_STORAGE_KEY, KIAL_UVONALAK_STORAGE_KEY, PROJEKT_STORAGE_KEY } from './storage'
 import {
   applyOfficeRateSettings,
   OFFICE_ALLAS_DIJ_KEY,
-  OFFICE_FUVAR_FIX_KEY,
   OFFICE_MIN_M3_KEY,
   validateOfficeRateSettings
 } from './officeRates'
@@ -21,23 +20,23 @@ globalThis.localStorage = {
 const settings = {
   schemaVersion: 1 as const,
   gyarak: [{ id: 'duna', nev: 'Duna Beton', fuvarAlap: 18500, zonaLepes: 700, minM3: 4, allasDij: 2000 }],
-  projektek: [{ nev: 'Hídépítés', arM3: 12000 }],
+  projektek: [{ nev: 'Hídépítés', arM3: 12000, gyarId: 'duna' }],
+  kiallasUtvonalak: [{ id: 'r1', honnan: 'Duna Beton', hova: 'Csepeli Beton', dij: 5000 }],
   minM3: 4,
-  allasDij: 2000,
-  fuvarFixDij: 50000
+  allasDij: 2000
 }
 
 describe('office rate updates', () => {
   beforeEach(() => localStorage.clear())
 
-  it('only applies factories, projects, and the fixed rate to local settings', () => {
+  it('only applies factories, projects, and call-out routes to local settings', () => {
     localStorage.setItem('fuvarok_v70', '[{"id":"trip"}]')
     localStorage.setItem('muhely_tetelek_v70', '[{"id":"work"}]')
     applyOfficeRateSettings(settings)
 
     expect(JSON.parse(localStorage.getItem(GYAR_STORAGE_KEY) ?? '[]')).toEqual(settings.gyarak)
     expect(JSON.parse(localStorage.getItem(PROJEKT_STORAGE_KEY) ?? '[]')).toEqual(settings.projektek)
-    expect(localStorage.getItem(OFFICE_FUVAR_FIX_KEY)).toBe('50000')
+    expect(JSON.parse(localStorage.getItem(KIAL_UVONALAK_STORAGE_KEY) ?? '[]')).toEqual(settings.kiallasUtvonalak)
     expect(localStorage.getItem(OFFICE_MIN_M3_KEY)).toBe('4')
     expect(localStorage.getItem(OFFICE_ALLAS_DIJ_KEY)).toBe('2000')
     expect(localStorage.getItem('fuvarok_v70')).toBe('[{"id":"trip"}]')
@@ -46,6 +45,14 @@ describe('office rate updates', () => {
 
   it('rejects malformed rate updates before touching local storage', () => {
     expect(() => validateOfficeRateSettings({ ...settings, gyarak: [] })).toThrow()
+    expect(localStorage.length).toBe(0)
+  })
+
+  it('rejects projects linked to factories missing from the rate update', () => {
+    expect(() => validateOfficeRateSettings({
+      ...settings,
+      projektek: [{ nev: 'Hídépítés', arM3: 12000, gyarId: 'ismeretlen' }]
+    })).toThrow('ismeretlen gyárhoz')
     expect(localStorage.length).toBe(0)
   })
 
