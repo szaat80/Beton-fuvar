@@ -99,6 +99,33 @@ describe('felhőmentések biztonságos egyesítése', () => {
     expect(result.conflicts).toEqual(['fuvarok: trip'])
   })
 
+  it('első szinkronkor összevonja a külön rekordokat anélkül, hogy az egyiket lecserélné', () => {
+    const base = mentes([])
+    const local = mentes([fuvar('telefon')])
+    const cloud = mentes([fuvar('windows')])
+
+    const result = mergeBackupChanges(base.adatok, local, cloud)
+
+    expect(result.conflicts).toEqual([])
+    expect(result.value.adatok.fuvarok.map((item) => item.id)).toEqual(['telefon', 'windows'])
+  })
+
+  it.each(['local', 'cloud'] as const)('csak az ütköző rekordnál alkalmazza a %s választást', (resolution) => {
+    const base = mentes([fuvar('kozos'), fuvar('valtozatlan')], '')
+    const local = mentes([fuvar('kozos', 'telefon'), fuvar('valtozatlan'), fuvar('csak-telefon')], 'Helyi')
+    const cloud = mentes([fuvar('kozos', 'Windows'), fuvar('valtozatlan'), fuvar('csak-windows')], 'Felhő')
+
+    const result = mergeBackupChanges(base.adatok, local, cloud, resolution)
+
+    expect(result.conflicts).toEqual(['fuvarok: kozos', 'appFejlec'])
+    expect(result.value.adatok.fuvarok.map((item) => item.fuvarszam)).toContain('valtozatlan')
+    expect(result.value.adatok.fuvarok.map((item) => item.id)).toContain('csak-telefon')
+    expect(result.value.adatok.fuvarok.map((item) => item.id)).toContain('csak-windows')
+    expect(result.value.adatok.fuvarok.find((item) => item.id === 'kozos')?.fuvarszam)
+      .toBe(resolution === 'local' ? 'telefon' : 'Windows')
+    expect(result.value.adatok.appFejlec).toBe(resolution === 'local' ? 'Helyi' : 'Felhő')
+  })
+
   it('összefésüli a kiállásokat és jelzi a fejlécbeállítás ütközését', () => {
     const callOut = { id: 'route-1', honnan: 'A', hova: 'B', dij: 1000, createdAt: '2026-10-15T10:00:00.000Z', driverName: 'Teszt', plateNumber: 'ABC-123' }
     const base = mentes([])

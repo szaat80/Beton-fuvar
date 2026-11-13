@@ -2,6 +2,7 @@ import type { Adatmentes } from './storage'
 
 type BackupData = Adatmentes['adatok']
 type MergeResult<T> = { value: T; conflicts: string[] }
+type ConflictResolution = 'local' | 'cloud'
 
 function stableString(value: unknown): string {
   if (value === undefined) return 'undefined'
@@ -19,7 +20,8 @@ function mergeRecords<T>(
   base: T[],
   local: T[],
   cloud: T[],
-  keyOf: (record: T) => string
+  keyOf: (record: T) => string,
+  resolution?: ConflictResolution
 ): MergeResult<T[]> {
   const index = (records: T[]) => {
     const result = new Map(records.map((record) => [keyOf(record), record]))
@@ -42,7 +44,8 @@ function mergeRecords<T>(
 
     if (localChanged && cloudChanged && stableString(localRecord) !== stableString(cloudRecord)) {
       conflicts.push(`${label}: ${key}`)
-      if (localRecord !== undefined) value.push(localRecord)
+      const selected = resolution === 'cloud' ? cloudRecord : localRecord
+      if (selected !== undefined) value.push(selected)
       continue
     }
 
@@ -57,12 +60,13 @@ function mergeValue<K extends 'appFejlec' | 'jelenletiFejlec'>(
   key: K,
   base: BackupData[K],
   local: BackupData[K],
-  cloud: BackupData[K]
+  cloud: BackupData[K],
+  resolution?: ConflictResolution
 ): MergeResult<BackupData[K]> {
   const localChanged = stableString(local) !== stableString(base)
   const cloudChanged = stableString(cloud) !== stableString(base)
   if (localChanged && cloudChanged && stableString(local) !== stableString(cloud)) {
-    return { value: local, conflicts: [key] }
+    return { value: resolution === 'cloud' ? cloud : local, conflicts: [key] }
   }
   return { value: localChanged ? local : cloud, conflicts: [] }
 }
@@ -70,47 +74,53 @@ function mergeValue<K extends 'appFejlec' | 'jelenletiFejlec'>(
 export function mergeBackupChanges(
   base: BackupData,
   local: Adatmentes,
-  cloud: Adatmentes
+  cloud: Adatmentes,
+  resolution?: ConflictResolution
 ): MergeResult<Adatmentes> {
   const baseData = base
   const localData = local.adatok
   const cloudData = cloud.adatok
-  const fuvarok = mergeRecords('fuvarok', baseData.fuvarok, localData.fuvarok, cloudData.fuvarok, (item) => item.id)
-  const gyarak = mergeRecords('gyárak', baseData.gyarak, localData.gyarak, cloudData.gyarak, (item) => item.id)
+  const fuvarok = mergeRecords('fuvarok', baseData.fuvarok, localData.fuvarok, cloudData.fuvarok, (item) => item.id, resolution)
+  const gyarak = mergeRecords('gyárak', baseData.gyarak, localData.gyarak, cloudData.gyarak, (item) => item.id, resolution)
   const munkaido = mergeRecords(
     'munkaidő-bejegyzések',
     baseData.munkaidoTetelek,
     localData.munkaidoTetelek,
     cloudData.munkaidoTetelek,
-    (item) => item.id
+    (item) => item.id,
+    resolution
   )
   const projektek = mergeRecords(
     'projektek',
     baseData.projektek,
     localData.projektek,
     cloudData.projektek,
-    (item) => `${item.gyarId ?? ''}:${item.nev.trim().toLocaleLowerCase('hu-HU')}`
+    (item) => `${item.gyarId ?? ''}:${item.nev.trim().toLocaleLowerCase('hu-HU')}`,
+    resolution
   )
   const kiallasok = mergeRecords(
     'kiállások',
     baseData.kiallasok ?? [],
     localData.kiallasok ?? [],
     cloudData.kiallasok ?? [],
-    (item) => item.id
+    (item) => item.id,
+    resolution
   )
   const kiallasUtvonalak = mergeRecords(
     'kiállási útvonalak',
     baseData.kiallasUtvonalak ?? [],
     localData.kiallasUtvonalak ?? [],
     cloudData.kiallasUtvonalak ?? [],
-    (item) => item.id
+    (item) => item.id,
+    resolution
   )
-  const appFejlec = mergeValue('appFejlec', baseData.appFejlec, localData.appFejlec, cloudData.appFejlec)
+  const appFejlec = mergeValue('appFejlec', baseData.appFejlec, localData.appFejlec, cloudData.appFejlec, resolution)
   const jelenletiFejlec = mergeValue(
     'jelenletiFejlec',
     baseData.jelenletiFejlec,
     localData.jelenletiFejlec,
-    cloudData.jelenletiFejlec
+    cloudData.jelenletiFejlec,
+    resolution
   )
 
   const conflicts = [

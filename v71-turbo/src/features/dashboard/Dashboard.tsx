@@ -35,9 +35,8 @@ export function Dashboard({ fuvarok, munkaidoTetelek }: Props) {
     const fuvarBevetel = fuvarok.reduce((s, f) => s + f.total, 0)
     const muhely = munkaidoTetelek.filter((t) => t.tipus === 'muhely').reduce((s, t) => s + t.total, 0)
     const m3 = fuvarok.reduce((s, f) => s + (Number(f.m3) || 0), 0)
-    const km = fuvarok.reduce((s, f) => s + (Number(f.km) || 0), 0)
     const trend = [...fuvarok].reverse().slice(-14).map((f) => f.total)
-    return { fuvarBevetel, muhely, m3, km, trend, osszes: fuvarBevetel + muhely }
+    return { fuvarBevetel, muhely, m3, trend, osszes: fuvarBevetel + muhely }
   }, [fuvarok, munkaidoTetelek])
 
   return (
@@ -59,10 +58,6 @@ export function Dashboard({ fuvarok, munkaidoTetelek }: Props) {
       <article className="tile">
         <span className="tile-label">Beton</span>
         <strong className="tile-num">{stat.m3.toLocaleString('hu-HU', { maximumFractionDigits: 1 })}<small> m³</small></strong>
-      </article>
-      <article className="tile">
-        <span className="tile-label">Megtett út</span>
-        <strong className="tile-num">{stat.km.toLocaleString('hu-HU', { maximumFractionDigits: 0 })}<small> km</small></strong>
       </article>
     </section>
   )

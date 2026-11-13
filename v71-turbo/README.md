@@ -64,12 +64,14 @@ Az **Irodai elszámolás** résznél alapértelmezetten az összes fuvar kerül 
 
 ## Saját Supabase-projekt és eszközök közötti szinkron
 
-A **Felhőszinkron · saját Supabase-adatbázis** résznél minden felhasználó a saját Supabase-projektjét és saját e-mailes fiókját használhatja. A web-, Android- és Windows-asztali app helyben továbbra is ment, internetkapcsolat esetén bejelentkezéskor, megnyitáskor, hálózat-visszatéréskor és 30 másodpercenként ellenőrzi a felhőt. A **Kényszerített szinkron** gomb azonnal ellenőrzi az adatokat. A külön eszközön létrehozott fuvarokat és bejegyzéseket automatikusan összevonja; ugyanazon rekord eltérő módosításánál választást kér, és nem ír felül csendben.
+A **Felhőszinkron · saját Supabase-adatbázis** résznél minden felhasználó a saját Supabase-projektjét és saját e-mailes fiókját használhatja. A web-, Android- és Windows-asztali app helyben továbbra is ment, internetkapcsolat esetén bejelentkezéskor, megnyitáskor, hálózat-visszatéréskor és 30 másodpercenként ellenőrzi a felhőt. A **Kényszerített szinkron** gomb azonnal ellenőrzi az adatokat. A külön eszközön létrehozott fuvarokat és bejegyzéseket automatikusan összevonja; ugyanazon rekord eltérő módosításánál választást kér, és nem ír felül csendben. Első összekapcsoláskor is egyesíti a két oldalon külön létrehozott rekordokat; csak az ütköző értékekről kér döntést, nem cseréli le az egyik teljes mentést a másikra.
+
+A szinkron a nyitva futó alkalmazások között internetkapcsolattal működik, nem garantál azonnali frissülést háttérbe tett vagy bezárt appnál. Az irodai alkalmazás a sofőr fuvar-, kiállás- és munkaidőadatait átveszi, valamint az irodai törléseket továbbítja; nem teszi közössé a helyi HR-, flotta- és üzemanyag-nyilvántartást. Az irodai árlista/projekt/kiállási útvonal külön közzétételi felületen jut el a v71-re.
 
 1. Hozz létre saját Supabase-projektet, és engedélyezd az e-mail/jelszó bejelentkezést az Authentication beállításainál. Az Authentication URL Configuration beállításában add meg az alkalmazás HTTPS-címét az engedélyezett Redirect URLs között; helyi fejlesztéshez add hozzá a `http://127.0.0.1:5173/**` címet is.
 2. A projekt SQL Editor felületén futtasd a `supabase/schema.sql` tartalmát. Ez létrehozza a JSON biztonsági mentést tároló táblát és a Row Level Security szabályokat; minden bejelentkezett felhasználó csak a saját sorát olvashatja és írhatja.
-3. A 71.0.4-es, ehhez a projekthez előre beállított telepítőben a projekt URL és publikus `publishable` kulcs automatikusan megjelenik. Másik Supabase-projekt használatához írd át ezeket az appban; majd jelentkezz be vagy hozz létre fiókot. Az app a projektbeállításokat eszközönként tárolja, jelszót nem tárol; a Supabase kliens kezeli a bejelentkezési munkamenetet.
-4. Első csatlakozáskor, ha már van felhőmentés, válaszd ki, hogy a helyi vagy a felhőadat legyen az alap. Később az egymástól független módosítások összevonódnak; ugyanazon rekord ütközésekor az app megáll és választást kér. A felhőadatok kézi, teljes letöltése megerősítést kér, mert lecseréli az eszköz helyi adatait.
+3. A 71.0.6-os, ehhez a projekthez előre beállított telepítőben a projekt URL és publikus `publishable` kulcs automatikusan megjelenik. Másik Supabase-projekt használatához írd át ezeket az appban; majd jelentkezz be vagy hozz létre fiókot. Az app a projektbeállításokat eszközönként tárolja, jelszót nem tárol; a Supabase kliens kezeli a bejelentkezési munkamenetet.
+4. Első csatlakozáskor az app megőrzi és összevonja a helyi és a felhőben lévő külön rekordokat. Ha ugyanaz a rekord mindkét oldalon eltérően változott, kiválaszthatod, hogy az adott ütközésnél a helyi vagy a felhőbeli érték maradjon meg; a többi, nem ütköző változás megmarad. Később is ugyanez a szabály érvényesül. A külön, kézzel indított teljes visszaállítás megerősítést kér, mert lecseréli az eszköz helyi adatait.
 
 Csak a Supabase URL-t és a publikus klienskulcsot add meg. **A `service_role` vagy más titkos kulcs nem kerülhet böngészőbe vagy mobilappba.** A biztonságot az adatbázisban bekapcsolt RLS adja, ezért ne távolítsd el és ne módosítsd a mellékelt saját-felhasználós szabályokat. Más alkalmazás a `app_sync_data` táblához a Supabase hitelesített REST API-ján csatlakozhat, ugyanazzal a felhasználói bejelentkezéssel és RLS-korlátozással; a `backup` mező a verziózott `beton-fuvar-mentes` JSON-formátum.
 
@@ -93,7 +95,7 @@ npm install
 npm run desktop:exe
 ```
 
-A telepítő a `release` mappába kerül `Beton fuvar Setup 71.0.4.exe` néven. Telepítés után a Windows Start menüjéből vagy az asztali parancsikonról indítható, internet nélkül is. A program adatai a Windows felhasználói profiljához tartozó helyi alkalmazástárban maradnak.
+A telepítő a `release` mappába kerül `Beton fuvar Setup 71.0.6.exe` néven. Telepítés után a Windows Start menüjéből vagy az asztali parancsikonról indítható, internet nélkül is. A program adatai a Windows felhasználói profiljához tartozó helyi alkalmazástárban maradnak.
 
 ## Android APK készítése
 
@@ -114,9 +116,9 @@ Az Android-projekt Capacitorral van létrehozva. Az `npm run cap:sync` parancs a
 ## Frissítés Androidon és Windowson
 
 - **Android:** az új APK-t másold át a telefonra, majd nyisd meg és erősítsd meg a frissítést. Ne távolítsd el előtte az alkalmazást. A telefon az adatokat megtartja, ha az alkalmazásazonosító és az aláírókulcs változatlan; ezért az APK-kat ugyanazon a fejlesztői gépen, ugyanazzal a Windows-felhasználói fiókkal kell készíteni, és a `%USERPROFILE%\.android\debug.keystore` fájlt nem szabad törölni.
-- **Windows:** zárd be a programot, majd indítsd el az új `release\Beton fuvar Setup 71.0.4.exe` telepítőt, és telepítsd a meglévő helyére. Nem kell előtte eltávolítani; a Windows-felhasználó helyi adatai megmaradnak.
+- **Windows:** zárd be a programot, majd indítsd el az új `release\Beton fuvar Setup 71.0.6.exe` telepítőt, és telepítsd a meglévő helyére. Nem kell előtte eltávolítani; a Windows-felhasználó helyi adatai megmaradnak.
 
-Új kiadás előtt a `package.json` verziószámát növelni kell (például `71.0.3`-ról `71.0.4`-re). Az Android `versionCode` automatikusan ebből készül, hogy a telefon az új APK-t frissítésként ismerje fel. Androidon a telepítés jóváhagyását a rendszer biztonsági okból mindig kéri; a frissítő APK nem tudja ezt felhasználói megerősítés nélkül megkerülni.
+Új kiadás előtt a `package.json` verziószámát növelni kell (például `71.0.6`-ról `71.0.7`-re). Az Android `versionCode` automatikusan ebből készül, hogy a telefon az új APK-t frissítésként ismerje fel. Androidon a telepítés jóváhagyását a rendszer biztonsági okból mindig kéri; a frissítő APK nem tudja ezt felhasználói megerősítés nélkül megkerülni.
 
 ## Fontos
 
